@@ -7,6 +7,7 @@ namespace Trino.Client.Test
     {
         public int Port { get; private set; }
         private readonly HttpListener listener = new();
+        private readonly ManualResetEventSlim listenerReady = new(false);
         private Task? serverTask;
         private bool cancelled = false;
 
@@ -45,6 +46,7 @@ namespace Trino.Client.Test
                 this.ConfigureTest(testFile, waitBetweenResponses);
             });
             this.serverTask.Start();
+            this.listenerReady.Wait();
         }
 
         /// <summary>
@@ -124,6 +126,7 @@ namespace Trino.Client.Test
             // Add the prefixes.
             listener.Prefixes.Add($"http://localhost:{Port}/v1/");
             listener.Start();
+            listenerReady.Set();
             Console.WriteLine("Listening...");
             // Note: The GetContext method blocks while waiting for a request.
             foreach (TestStep response in responses)
@@ -158,6 +161,9 @@ namespace Trino.Client.Test
                 {
                     // Construct a response.
                     byte[] buffer = System.Text.Encoding.UTF8.GetBytes(response.Payload);
+
+                    // Disable keep-alive to ensure clean connection handling when using waitBetweenResponses
+                    httpListenerResponse.KeepAlive = false;
 
                     // add headers
                     foreach (KeyValuePair<string, List<string>> header in response.Headers)
