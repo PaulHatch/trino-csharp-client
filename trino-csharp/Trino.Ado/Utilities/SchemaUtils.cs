@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Trino.Core.Logging;
 using Trino.Core.Utils;
 using Trino.Core;
@@ -19,7 +18,7 @@ namespace Trino.Ado.Utilities
     /// </summary>
     internal class SchemaUtils
     {
-        private static readonly Regex legalIdentifierName = new Regex("^[a-zA-Z_][a-zA-Z_0-9]*$");
+        private static readonly Regex _legalIdentifierName = new Regex("^[a-zA-Z_][a-zA-Z_0-9]*$");
 
         internal static DataTable GetInformationSchema(TrinoConnection connection, ILoggerWrapper logger, string informationSchemaTable, string filter)
         {
@@ -30,7 +29,7 @@ namespace Trino.Ado.Utilities
             }
             else
             {
-                string whereIfFilter = string.IsNullOrEmpty(filter) ? "" : "WHERE";
+                var whereIfFilter = string.IsNullOrEmpty(filter) ? "" : "WHERE";
                 return new TrinoCommand(connection, $"SELECT * FROM {connection.ConnectionSession.Properties.Catalog}.information_schema.{informationSchemaTable} {whereIfFilter} {filter}").RunQuery().SafeResult().BuildDataTableAsync().SafeResult();
             }
         }
@@ -39,10 +38,10 @@ namespace Trino.Ado.Utilities
         {
             ValidateRestrictionValues(restrictionMapping, restrictionValues);
 
-            List<string> restrictionsFilters = new List<string>();
-            for (int i = 0; i < restrictionMapping.Length; i++)
+            var restrictionsFilters = new List<string>();
+            for (var i = 0; i < restrictionMapping.Length; i++)
             {
-                string colName = restrictionMapping[i].TrinoColumnName;
+                var colName = restrictionMapping[i].TrinoColumnName;
                 if (i < restrictionValues.Length && restrictionValues[i] != null)
                 {
                     restrictionsFilters.Add($"{colName} = '{restrictionValues[i]}'");
@@ -60,33 +59,33 @@ namespace Trino.Ado.Utilities
             return string.Join(" AND ", restrictionsFilters);
         }
 
-        internal static TrinoSchemaRestriction[] SchemaRestrictionsMapping = new TrinoSchemaRestriction[]
-        {
+        internal static TrinoSchemaRestriction[] SchemaRestrictionsMapping =
+        [
             new TrinoSchemaRestriction("schema_name", SchemaRestrictionType.Schema)
-        };
+        ];
 
-        internal static TrinoSchemaRestriction[] TableRestrictionsMapping = new TrinoSchemaRestriction[]
-        {
+        internal static TrinoSchemaRestriction[] TableRestrictionsMapping =
+        [
             new TrinoSchemaRestriction("table_catalog", SchemaRestrictionType.Catalog),
             new TrinoSchemaRestriction("table_schema", SchemaRestrictionType.Schema),
             new TrinoSchemaRestriction("table_name", SchemaRestrictionType.Table),
             new TrinoSchemaRestriction("table_type", SchemaRestrictionType.TableType)
-        };
+        ];
 
-        internal static TrinoSchemaRestriction[] ColumnRestrictionsMapping = new TrinoSchemaRestriction[]
-        {
+        internal static TrinoSchemaRestriction[] ColumnRestrictionsMapping =
+        [
             new TrinoSchemaRestriction("table_catalog", SchemaRestrictionType.Catalog),
             new TrinoSchemaRestriction("table_schema", SchemaRestrictionType.Schema),
             new TrinoSchemaRestriction("table_name", SchemaRestrictionType.Table),
             new TrinoSchemaRestriction("column_name", SchemaRestrictionType.Column)
-        };
+        ];
 
-        internal static TrinoSchemaRestriction[] ViewRestrictionsMapping = new TrinoSchemaRestriction[]
-        {
+        internal static TrinoSchemaRestriction[] ViewRestrictionsMapping =
+        [
             new TrinoSchemaRestriction("table_catalog", SchemaRestrictionType.Catalog),
             new TrinoSchemaRestriction("table_schema", SchemaRestrictionType.Schema),
             new TrinoSchemaRestriction("table_name", SchemaRestrictionType.Table)
-        };
+        ];
 
         private static void ValidateRestrictionValues(TrinoSchemaRestriction[] restrictionMapping, string[] restrictionValues)
         {
@@ -96,9 +95,9 @@ namespace Trino.Ado.Utilities
             }
 
             // Prevent SQL injection by limiting restriction values to legal table names which means alphanumeric and underscores
-            foreach (string value in restrictionValues)
+            foreach (var value in restrictionValues)
             {
-                if (!string.IsNullOrEmpty(value) && !legalIdentifierName.IsMatch(value))
+                if (!string.IsNullOrEmpty(value) && !_legalIdentifierName.IsMatch(value))
                 {
                     throw new ArgumentException($"Illegal restriction value {value}. Restriction values must be alphanumeric and underscores.");
                 }
@@ -110,14 +109,14 @@ namespace Trino.Ado.Utilities
         /// </summary>
         private static DataTable GetAllInformationSchemaWithTimeout(TrinoConnection connection, ILoggerWrapper logger, string informationSchemaTable, string filter)
         {
-            List<string> catalogs = new TrinoCommand(connection, "SHOW CATALOGS").RunQuery().SafeResult().Select(row => row[0].ToString()).ToList();
-            ConcurrentBag<DataTable> schemas = new ConcurrentBag<DataTable>();
+            var catalogs = new TrinoCommand(connection, "SHOW CATALOGS").RunQuery().SafeResult().Select(row => row[0].ToString()).ToList();
+            var schemas = new ConcurrentBag<DataTable>();
             // union all query will fail if any catalog does not respond, so we issue a query per catalog respecting the timeout
             Parallel.ForEach(catalogs, catalog =>
             {
                 try
                 {
-                    string command = $"SELECT * FROM {catalog}.information_schema.{informationSchemaTable} WHERE {filter}";
+                    var command = $"SELECT * FROM {catalog}.information_schema.{informationSchemaTable} WHERE {filter}";
                     schemas.Add(new TrinoCommand(connection, command).RunQuery().SafeResult().BuildDataTableAsync().SafeResult());
                 }
                 catch (TrinoAggregateException e)
@@ -135,7 +134,7 @@ namespace Trino.Ado.Utilities
             });
 
             DataTable merged = null;
-            foreach (DataTable dt in schemas)
+            foreach (var dt in schemas)
             {
                 if (merged == null)
                 {

@@ -17,7 +17,7 @@ namespace Trino.Ado.Server
     public class TrinoConnection : DbConnection
     {
         private ConnectionState state = ConnectionState.Closed;
-        private static readonly HashSet<string> supportedSchemaCollections = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        private static readonly HashSet<string> _supportedSchemaCollections = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "catalogs",
             "schemas",
@@ -80,7 +80,7 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Gets the version of the connected Trino server.
         /// </summary>
-        public override string ServerVersion => new InfoClientV1(ConnectionSession).Get().nodeVersion.version;
+        public override string ServerVersion => new InfoClientV1(ConnectionSession).Get().NodeVersion.Version;
 
         /// <summary>
         /// Event handlers for receiving query statistics and errors.
@@ -166,9 +166,9 @@ namespace Trino.Ado.Server
             var schemaTable = new DataTable();
             schemaTable.Columns.Add("CollectionName", typeof(string));
 
-            foreach (string collection in supportedSchemaCollections)
+            foreach (var collection in _supportedSchemaCollections)
             {
-                DataRow row = schemaTable.NewRow();
+                var row = schemaTable.NewRow();
                 row["CollectionName"] = collection;
                 schemaTable.Rows.Add(row);
             }
@@ -181,7 +181,7 @@ namespace Trino.Ado.Server
         /// </summary>
         public override DataTable GetSchema(string collectionName)
         {
-            return GetSchema(collectionName, Array.Empty<string>());
+            return GetSchema(collectionName, []);
         }
 
         /// <summary>
@@ -252,7 +252,7 @@ namespace Trino.Ado.Server
 
         private bool TestConnection()
         {
-            return new InfoClientV1(ConnectionSession).Get().starting == false;
+            return new InfoClientV1(ConnectionSession).Get().Starting == false;
         }
     }
 }

@@ -2,60 +2,59 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Trino.Core.Utils
+namespace Trino.Core.Utils;
+
+public class TrinoFunction
 {
-    public class TrinoFunction
+    private readonly string catalog;
+    private readonly string functionName;
+    private readonly IList<object> parameters;
+
+    public TrinoFunction(string catalog, string functionName, IList<object> parameters)
     {
-        private readonly string catalog;
-        private readonly string functionName;
-        private readonly IList<object> Parameters;
+        this.catalog = catalog;
+        this.functionName = functionName;
+        this.parameters = parameters;
+    }
 
-        public TrinoFunction(string catalog, string functionName, IList<object> parameters)
+    public virtual Task<RecordExecutor> ExecuteAsync(ClientSession session)
+    {
+        var statement = BuildFunctionStatement();
+        return RecordExecutor.Execute(session, statement);
+    }
+
+    protected virtual string BuildFunctionStatement()
+    {
+        var stringBuilder = new StringBuilder();
+        if (!string.IsNullOrEmpty(catalog))
         {
-            this.catalog = catalog;
-            this.functionName = functionName;
-            this.Parameters = parameters;
+            stringBuilder.Append(catalog);
+            stringBuilder.Append(".");
         }
+        stringBuilder.Append(functionName);
+        stringBuilder.Append("(");
 
-        public virtual Task<RecordExecutor> ExecuteAsync(ClientSession session)
+        for (var i = 0; i < parameters.Count; i++)
         {
-            string statement = BuildFunctionStatement();
-            return RecordExecutor.Execute(session, statement);
-        }
-
-        protected virtual string BuildFunctionStatement()
-        {
-            StringBuilder stringBuilder = new StringBuilder();
-            if (!string.IsNullOrEmpty(catalog))
+            if (i > 0)
             {
-                stringBuilder.Append(this.catalog);
-                stringBuilder.Append(".");
+                stringBuilder.Append(", ");
             }
-            stringBuilder.Append(this.functionName);
-            stringBuilder.Append("(");
 
-            for (int i = 0; i < Parameters.Count; i++)
+            // if parameter is a digit, do not quote it
+            if (parameters[i] is int || parameters[i] is long || parameters[i] is float || parameters[i] is double)
             {
-                if (i > 0)
-                {
-                    stringBuilder.Append(", ");
-                }
-
-                // if parameter is a digit, do not quote it
-                if (Parameters[i] is int || Parameters[i] is long || Parameters[i] is float || Parameters[i] is double)
-                {
-                    stringBuilder.Append(Parameters[i]);
-                }
-                else
-                {
-                    stringBuilder.Append("'");
-                    stringBuilder.Append(Parameters[i]);
-                    stringBuilder.Append("'");
-                }
+                stringBuilder.Append(parameters[i]);
             }
-            stringBuilder.Append(")");
-
-            return stringBuilder.ToString();
+            else
+            {
+                stringBuilder.Append("'");
+                stringBuilder.Append(parameters[i]);
+                stringBuilder.Append("'");
+            }
         }
+        stringBuilder.Append(")");
+
+        return stringBuilder.ToString();
     }
 }

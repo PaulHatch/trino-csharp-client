@@ -1,13 +1,12 @@
 using System.Threading.Tasks;
 
-namespace Trino.Core.Utils
+namespace Trino.Core.Utils;
+
+/// <summary>
+/// Imitates the IAsyncEnumerator interface, which is not available in .NET Standard 2.0.
+/// </summary>
+internal interface IAsyncEnumeratorPlaceholder<T>
 {
-    /// <summary>
-    /// Imitates the IAsyncEnumerator interface, which is not available in .NET Standard 2.0.
-    /// </summary>
-    internal interface IAsyncEnumeratorPlaceholder<T>
-    {
-        Task<bool> MoveNextAsync();
-        T Current { get; }
-    }
+    Task<bool> MoveNextAsync();
+    T Current { get; }
 }

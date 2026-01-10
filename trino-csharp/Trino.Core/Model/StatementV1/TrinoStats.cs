@@ -1,68 +1,67 @@
 using System;
 
-namespace Trino.Core.Model.StatementV1
+namespace Trino.Core.Model.StatementV1;
+
+/// <summary>
+/// Statistics about query execution
+/// </summary>
+public class TrinoStats
 {
     /// <summary>
-    /// Statistics about query execution
+    /// State of the query
     /// </summary>
-    public class TrinoStats
+    public string State
     {
-        /// <summary>
-        /// State of the query
-        /// </summary>
-        public string state
+        get;
+        set;
+    }
+
+    /// <summary>
+    /// True, if the query is queued
+    /// </summary>
+    public bool Queued
+    {
+        get;
+        set;
+    }
+
+    /// <summary>
+    /// True, if the query was scheduled
+    /// </summary>
+    public bool Scheduled
+    {
+        get;
+        set;
+    }
+
+    public long Nodes { get; set; }
+    public long TotalSplits { get; set; }
+    public long QueuedSplits { get; set; }
+    public long RunningSplits { get; set; }
+    public long CompletedSplits { get; set; }
+    public long CpuTimeMillis { get; set; }
+    public long WallTimeMillis { get; set; }
+    public long QueuedTimeMillis { get; set; }
+    public long ElapsedTimeMillis { get; set; }
+    public long ProcessedRows { get; set; }
+    public long ProcessedBytes { get; set; }
+    public long PeakMemoryBytes { get; set; }
+    public long SpilledBytes { get; set; }
+    public double ProgressPercentage { get; set; }
+
+    /// <summary>
+    /// Get the query execution progress percentage as a ratio
+    /// </summary>
+    /// <returns>Progress executing the query</returns>
+    public double GetProgressRatio()
+    {
+        if (TotalSplits == 0)
         {
-            get;
-            set;
+            return 0;
         }
-
-        /// <summary>
-        /// True, if the query is queued
-        /// </summary>
-        public bool queued
+        else
         {
-            get;
-            set;
-        }
-
-        /// <summary>
-        /// True, if the query was scheduled
-        /// </summary>
-        public bool scheduled
-        {
-            get;
-            set;
-        }
-
-        public long nodes { get; set; }
-        public long totalSplits { get; set; }
-        public long queuedSplits { get; set; }
-        public long runningSplits { get; set; }
-        public long completedSplits { get; set; }
-        public long cpuTimeMillis { get; set; }
-        public long wallTimeMillis { get; set; }
-        public long queuedTimeMillis { get; set; }
-        public long elapsedTimeMillis { get; set; }
-        public long processedRows { get; set; }
-        public long processedBytes { get; set; }
-        public long peakMemoryBytes { get; set; }
-        public long spilledBytes { get; set; }
-        public double progressPercentage { get; set; }
-
-        /// <summary>
-        /// Get the query execution progress percentage as a ratio
-        /// </summary>
-        /// <returns>Progress executing the query</returns>
-        public double GetProgressRatio()
-        {
-            if (totalSplits == 0)
-            {
-                return 0;
-            }
-            else
-            {
-                return Math.Round(completedSplits / (double)totalSplits, 2);
-            }
+            return Math.Round(CompletedSplits / (double)TotalSplits, 2);
         }
     }
 }

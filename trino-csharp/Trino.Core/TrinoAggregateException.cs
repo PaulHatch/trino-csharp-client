@@ -1,18 +1,17 @@
 using System;
 using System.Collections.Generic;
 
-namespace Trino.Core
+namespace Trino.Core;
+
+/// <summary>
+/// Aggregate exception for Trino client
+/// </summary>
+public class TrinoAggregateException : AggregateException
 {
     /// <summary>
-    /// Aggregate exception for Trino client
+    /// Create a TrinoAggregateException
     /// </summary>
-    public class TrinoAggregateException : AggregateException
+    public TrinoAggregateException(IEnumerable<Exception> exceptions) : base(exceptions)
     {
-        /// <summary>
-        /// Create a TrinoAggregateException
-        /// </summary>
-        public TrinoAggregateException(IEnumerable<Exception> exceptions) : base(exceptions)
-        {
-        }
     }
 }

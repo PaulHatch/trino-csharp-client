@@ -10,102 +10,103 @@ using System.Net.Http.Headers;
 using Trino.Core.Logging;
 using Trino.Core.Utils;
 
-namespace Trino.Core
+namespace Trino.Core;
+
+public abstract class AbstractClient<T>
 {
-    public abstract class AbstractClient<T>
+    private const string _trinoClientName = ".NET Trino Client";
+    private static readonly HashSet<HttpStatusCode> _defaultExpectedResponseCodes = [HttpStatusCode.OK];
+    protected abstract string ResourcePath { get; }
+    protected internal HttpClient HttpClient;
+    protected internal ClientSession Session { get; set; }
+    protected internal ILoggerWrapper Logger;
+    protected internal CancellationToken CancellationToken;
+    protected internal ProtocolHeaders ProtocolHeaders;
+
+    // HTTP status codes that allow for a retry
+    protected internal HashSet<HttpStatusCode> RetryableResponses =
+        [HttpStatusCode.BadGateway, HttpStatusCode.ServiceUnavailable, HttpStatusCode.GatewayTimeout];
+
+    protected AbstractClient(ClientSession session, ILoggerWrapper logger, CancellationToken cancellationToken)
     {
-        private const string TrinoClientName = ".NET Trino Client";
-        private static readonly HashSet<HttpStatusCode> defaultExpectedResponseCodes = new HashSet<HttpStatusCode> { HttpStatusCode.OK };
-        protected abstract string ResourcePath { get; }
-        protected internal HttpClient httpClient;
-        protected internal ClientSession Session { get; set; }
-        protected internal ILoggerWrapper logger;
-        protected internal CancellationToken cancellationToken;
-        protected internal ProtocolHeaders protocolHeaders;
+        HttpClient = new HttpClient();
+        Session = session;
+        Logger = logger;
+        CancellationToken = cancellationToken;
+        ProtocolHeaders = new ProtocolHeaders(session.Properties.ServerType);
+    }
 
-        // HTTP status codes that allow for a retry
-        protected internal HashSet<HttpStatusCode> RetryableResponses = new HashSet<HttpStatusCode>() { HttpStatusCode.BadGateway, HttpStatusCode.ServiceUnavailable, HttpStatusCode.GatewayTimeout };
+    /// <summary>
+    /// The URI of the Trino resource.
+    /// </summary>
+    protected virtual internal Uri ResourceUri => new Uri($"{Session.Properties.Server}{ResourcePath}");
 
-        protected AbstractClient(ClientSession session, ILoggerWrapper logger, CancellationToken cancellationToken)
+    /// <summary>
+    /// Performs HTTP request to Trino to fetch the requested resource and deserializes it to the specified type.
+    /// </summary>
+    public T Get()
+    {
+        return GetAsync().SafeResult();
+    }
+
+    /// <summary>
+    /// Performs HTTP request to Trino to fetch the requested resource and deserializes it to the specified type.
+    /// </summary>
+    protected internal async Task<T> GetAsync()
+    {
+        return await GetAsync(ResourceUri).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Performs HTTP request to Trino to fetch the requested resource and deserializes it to the specified type.
+    /// </summary>
+    protected internal async Task<T> GetAsync(Uri uri)
+    {
+        var resourceContent = await GetAsync(uri, _defaultExpectedResponseCodes).ConfigureAwait(false);
+        var deserializedResult = JsonSerializer.Deserialize<T>(resourceContent, JsonSerializerConfig.Options);
+        return deserializedResult;
+    }
+
+    /// <summary>
+    /// Perform actual HTTP request to Trino to fetch the requested resource
+    /// </summary>
+    protected async Task<string> GetAsync(Uri uri, HashSet<HttpStatusCode> expectedResponses)
+    {
+        using (var request = new HttpRequestMessage(HttpMethod.Get, uri))
         {
-            this.httpClient = new HttpClient();
-            Session = session;
-            this.logger = logger;
-            this.cancellationToken = cancellationToken;
-            this.protocolHeaders = new ProtocolHeaders(session.Properties.ServerType);
+            return await GetResourceAsync(
+                HttpClient,
+                RetryableResponses,
+                Session,
+                request,
+                expectedResponses,
+                CancellationToken).ConfigureAwait(false);
         }
+    }
 
-        /// <summary>
-        /// The URI of the Trino resource.
-        /// </summary>
-        protected virtual internal Uri ResourceUri => new Uri($"{Session.Properties.Server}{this.ResourcePath}");
+    /// <summary>
+    /// Perform actual HTTP request to Trino to fetch the requested resource
+    /// </summary>
+    protected async Task<string> GetResourceAsync(
+        HttpClient httpClient,
+        HashSet<HttpStatusCode> retryableResponses,
+        ClientSession session,
+        HttpRequestMessage request,
+        HashSet<HttpStatusCode> expectedResponses,
+        CancellationToken token)
+    {
+        var responseContent = string.Empty;
+        AddHeaders(ProtocolHeaders, request, session);
 
-        /// <summary>
-        /// Performs HTTP request to Trino to fetch the requested resource and deserializes it to the specified type.
-        /// </summary>
-        public T Get()
+        // Continually retry until erroring or a valid response
+        while (true)
         {
-            return this.GetAsync().SafeResult();
-        }
-
-        /// <summary>
-        /// Performs HTTP request to Trino to fetch the requested resource and deserializes it to the specified type.
-        /// </summary>
-        protected internal async Task<T> GetAsync()
-        {
-            return await this.GetAsync(this.ResourceUri).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Performs HTTP request to Trino to fetch the requested resource and deserializes it to the specified type.
-        /// </summary>
-        protected internal async Task<T> GetAsync(Uri uri)
-        {
-            string resourceContent = await GetAsync(uri, defaultExpectedResponseCodes).ConfigureAwait(false);
-            T deserializedResult = JsonSerializer.Deserialize<T>(resourceContent, JsonSerializerConfig.Options);
-            return deserializedResult;
-        }
-
-        /// <summary>
-        /// Perform actual HTTP request to Trino to fetch the requested resource
-        /// </summary>
-        protected async Task<string> GetAsync(Uri uri, HashSet<HttpStatusCode> expectedResponses)
-        {
-            using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, uri))
+            try
             {
-                return await GetResourceAsync(
-                    httpClient,
-                    this.RetryableResponses,
-                    this.Session,
-                    request,
-                    expectedResponses,
-                    cancellationToken).ConfigureAwait(false);
-            }
-        }
-
-        /// <summary>
-        /// Perform actual HTTP request to Trino to fetch the requested resource
-        /// </summary>
-        protected async Task<string> GetResourceAsync(
-            HttpClient httpClient,
-            HashSet<HttpStatusCode> retryableResponses,
-            ClientSession session,
-            HttpRequestMessage request,
-            HashSet<HttpStatusCode> expectedResponses,
-            CancellationToken token)
-        {
-            string responseContent = string.Empty;
-            AddHeaders(protocolHeaders, request, session);
-
-            // Continually retry until erroring or a valid response
-            while (true)
-            {
-                try
+                HttpStatusCode statusCode;
+                using (var page = await httpClient.SendAsync(request, token).ConfigureAwait(false))
                 {
-                    HttpStatusCode statusCode;
-                    using (HttpResponseMessage page = await httpClient.SendAsync(request, token).ConfigureAwait(false))
-                    {
-                        responseContent = await page.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    responseContent = await page.Content.ReadAsStringAsync().ConfigureAwait(false);
 #if TEST_OUTPUT
                         // For UT generation, write the response to a file.
                         // First get the headers from the response and serialize them into k=v pairs
@@ -125,68 +126,67 @@ namespace Trino.Core
                         File.AppendAllText(fileName, headers.ToString() + Environment.NewLine);
                         File.AppendAllText(fileName, responseStrWithUpdatedHost.Trim() + Environment.NewLine);
 #endif
-                        statusCode = page.StatusCode;
-                        if (retryableResponses.Contains(statusCode))
-                        {
-                            continue;
-                        }
-
-                        if (!expectedResponses.Contains(statusCode))
-                        {
-                            throw new TrinoException($"HTTP {(int)statusCode} ({statusCode}): {responseContent}");
-                        }
-
-                        this.ProcessResponseHeaders(page.Headers);
+                    statusCode = page.StatusCode;
+                    if (retryableResponses.Contains(statusCode))
+                    {
+                        continue;
                     }
 
-                    return responseContent;
-                }
-                catch (WebException ex)
-                {
-                    using (var stream = ex.Response.GetResponseStream())
-                    using (var reader = new StreamReader(stream))
+                    if (!expectedResponses.Contains(statusCode))
                     {
-                        string responseStr;
-                        responseStr = reader.ReadToEnd();
-                        throw new TrinoException(responseStr, ex);
+                        throw new TrinoException($"HTTP {(int)statusCode} ({statusCode}): {responseContent}");
                     }
+
+                    ProcessResponseHeaders(page.Headers);
                 }
-                catch (Exception ex)
-                {
-                    if (!string.IsNullOrEmpty(responseContent))
-                    {
-                        throw new TrinoException(responseContent, ex);
-                    }
-                    else
-                    {
-                        throw ex;
-                    }
-                }
+
+                return responseContent;
             }
-        }
-
-        protected virtual void ProcessResponseHeaders(HttpResponseHeaders headers)
-        {
-        }
-
-        /// <summary>
-        /// Adds headers that are common to all requests
-        /// </summary>
-        protected static internal void AddHeaders(ProtocolHeaders protocolHeaders, HttpRequestMessage request, ClientSession session)
-        {
-            session.Auth?.AddCredentialToRequest(request);
-
-            if (!string.IsNullOrEmpty(session.Properties.User))
+            catch (WebException ex)
             {
-                request.Headers.Add(protocolHeaders.RequestUser, session.Properties.User);
+                using (var stream = ex.Response.GetResponseStream())
+                using (var reader = new StreamReader(stream))
+                {
+                    string responseStr;
+                    responseStr = reader.ReadToEnd();
+                    throw new TrinoException(responseStr, ex);
+                }
             }
-            else if (session.Auth == null)
+            catch (Exception ex)
             {
-                // A user is always required, if no user is provided, use the user agent
-                request.Headers.Add(protocolHeaders.RequestUser, TrinoClientName);
+                if (!string.IsNullOrEmpty(responseContent))
+                {
+                    throw new TrinoException(responseContent, ex);
+                }
+                else
+                {
+                    throw ex;
+                }
             }
-
-            request.Headers.Add("User-Agent", TrinoClientName);
         }
+    }
+
+    protected virtual void ProcessResponseHeaders(HttpResponseHeaders headers)
+    {
+    }
+
+    /// <summary>
+    /// Adds headers that are common to all requests
+    /// </summary>
+    protected static internal void AddHeaders(ProtocolHeaders protocolHeaders, HttpRequestMessage request, ClientSession session)
+    {
+        session.Auth?.AddCredentialToRequest(request);
+
+        if (!string.IsNullOrEmpty(session.Properties.User))
+        {
+            request.Headers.Add(protocolHeaders.RequestUser, session.Properties.User);
+        }
+        else if (session.Auth == null)
+        {
+            // A user is always required, if no user is provided, use the user agent
+            request.Headers.Add(protocolHeaders.RequestUser, _trinoClientName);
+        }
+
+        request.Headers.Add("User-Agent", _trinoClientName);
     }
 }

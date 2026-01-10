@@ -1,21 +1,18 @@
 using System;
-using System.Net.Http;
-using System.Text;
 
-namespace Trino.Core.Auth
+namespace Trino.Core.Auth;
+
+public class LdapAuth : BasicAuth
 {
-    public class LDAPAuth : BasicAuth
+    public LdapAuth()
     {
-        public LDAPAuth()
-        {
-        }
+    }
 
-        public override void AuthorizeAndValidate()
+    public override void AuthorizeAndValidate()
+    {
+        if (string.IsNullOrEmpty(User) || string.IsNullOrEmpty(Password))
         {
-            if (string.IsNullOrEmpty(User) || string.IsNullOrEmpty(Password))
-            {
-                throw new ArgumentException("LDAPAuth: username or password property is null or empty");
-            }
+            throw new ArgumentException("LDAPAuth: username or password property is null or empty");
         }
     }
 }

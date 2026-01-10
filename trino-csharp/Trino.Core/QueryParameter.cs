@@ -2,72 +2,56 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Trino.Core
+namespace Trino.Core;
+
+/// <summary>
+/// A query parameter for a Trino query.
+/// </summary>
+public class QueryParameter
 {
-    /// <summary>
-    /// A query parameter for a Trino query.
-    /// </summary>
-    public class QueryParameter
+    public QueryParameter(object value)
     {
-        public QueryParameter(object value)
-        {
-            Value = value;
-        }
+        Value = value;
+    }
 
-        /// <summary>
-        /// The value of the parameter.
-        /// </summary>
-        public object Value { get; set; }
+    /// <summary>
+    /// The value of the parameter.
+    /// </summary>
+    public object Value { get; set; }
 
-        /// <summary>
-        /// Get the string representation of the parameter value that can be used in a SQL expression.
-        /// </summary>
-        internal string SqlExpressionValue
+    /// <summary>
+    /// Get the string representation of the parameter value that can be used in a SQL expression.
+    /// </summary>
+    internal string SqlExpressionValue
+    {
+        get
         {
-            get
+            switch (Value)
             {
-                if (Value == null)
-                {
+                case null:
                     return "NULL";
-                }
-                else if (Value is string)
-                {
+                case string _:
                     return $"'{Value.ToString().Replace("'", "''")}'";
-                }
-                else if (Value is DateTime dateTime)
-                {
+                case DateTime dateTime:
                     return $"timestamp '{dateTime:yyyy-MM-dd HH:mm:ss.fff}'";
-                }
-                else if (Value is DateTimeOffset offset)
-                {
+                case DateTimeOffset offset:
                     return $"\"timestamp with time zone\" '{offset:yyyy-MM-dd HH:mm:ss.fff zzz}'";
-                }
-                else if (Value is TimeSpan span)
-                {
+                case TimeSpan span:
                     return $"'{span:c}'";
-                }
-                else if (Value is Guid)
-                {
+                case Guid _:
                     return $"'{Value}'";
-                }
-                else if (Value is bool b)
-                {
+                case bool b:
                     return b ? "TRUE" : "FALSE";
-                }
-                else if (Value is byte[] binary)
-                {
+                case byte[] binary:
                     return $"X'{BitConverter.ToString(binary).Replace("-", "")}'";
-                }
-                else if (Value is IEnumerable<object> enumerable)
+                case IEnumerable<object> enumerable:
                 {
-                    var items = enumerable.Cast<object>()
+                    var items = enumerable
                         .Select(item => new QueryParameter(item).SqlExpressionValue);
                     return $"({string.Join(", ", items)})";
                 }
-                else
-                {
+                default:
                     return Value.ToString();
-                }
             }
         }
     }

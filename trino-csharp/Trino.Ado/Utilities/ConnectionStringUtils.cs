@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -35,20 +34,20 @@ namespace Trino.Ado.Utilities
 
         public static string HostProperty => "Host";
         public static string PortProperty => "Port";
-        public static string EnableSSLProperty => "EnableSSL";
+        public static string EnableSslProperty => "EnableSSL";
 
         public static string AuthenticationTypeProperty => "Auth";
 
-        public static string AllowHostNameCNMismatchProperty => "AllowHostNameCNMismatch";
+        public static string AllowHostNameCnMismatchProperty => "AllowHostNameCNMismatch";
         public static string AllowSelfSignedServerCertProperty => "AllowSelfSignedServerCert";
         public static string TrustedCertPathProperty => "TrustedCertPath";
         public static string TrustedCertificateProperty => "TrustedCertificate";
         public static string UseSystemTrustStoreProperty => "UseSystemTrustStore";
 
         // handles session key value pair strings
-        private static readonly Regex keyValuePairs = new Regex(@"^[0-9A-z_\.]+:[0-9A-z_\.]+(,[0-9A-z_\.]+:[0-9A-z_\.]+)*,?$");
+        private static readonly Regex _keyValuePairs = new Regex(@"^[0-9A-z_\.]+:[0-9A-z_\.]+(,[0-9A-z_\.]+:[0-9A-z_\.]+)*,?$");
 
-        private static readonly Dictionary<string, PropertyHandler> propertyHandlers = new Dictionary<string, PropertyHandler>(StringComparer.InvariantCultureIgnoreCase)
+        private static readonly Dictionary<string, PropertyHandler> _propertyHandlers = new Dictionary<string, PropertyHandler>(StringComparer.InvariantCultureIgnoreCase)
         {
             { UserProperty, new PropertyHandler((session) => session.User, (session, value) => session.User = value) },
             { TestConnectionProperty, new PropertyHandler((session) => session.TestConnection.ToString(), (session, value) => session.TestConnection = bool.Parse(value)) },
@@ -59,7 +58,8 @@ namespace Trino.Ado.Utilities
             { TimezoneProperty, new PropertyHandler((session) => session.TimeZone, (session, value) => session.TimeZone = value) },
             { LocaleProperty, new PropertyHandler((session) => session.Locale, (session, value) => session.Locale = value) },
             { ClientInfoProperty, new PropertyHandler((session) => session.ClientInfo, (session, value) => session.ClientInfo = value) },
-            { ClientTagsProperty, new PropertyHandler((session) => string.Join(",", session.ClientTags), (session, value) => session.ClientTags = new HashSet<string>(value.Split(','))) },
+            { ClientTagsProperty, new PropertyHandler((session) => string.Join(",", session.ClientTags), (session, value) => session.ClientTags =
+                [..value.Split(',')]) },
             { ClientRequestTimeoutProperty, new PropertyHandler((session) => session.ClientRequestTimeout.HasValue ? session.ClientRequestTimeout.Value.TotalSeconds.ToString() : null, (session, value) => session.ClientRequestTimeout = TimeSpan.FromSeconds(double.Parse(value))) },
             { CompressionDisabledProperty, new PropertyHandler((session) => (session.CompressionDisabled).ToString(), (session, value) => session.CompressionDisabled = bool.Parse(value)) },
             { TransactionIdProperty, new PropertyHandler((session) => session.TransactionId, (session, value) => session.TransactionId = value) },
@@ -68,7 +68,7 @@ namespace Trino.Ado.Utilities
             { PropertiesProperty, new PropertyHandler((session) => SerializeProperties(session.Properties), (session, value) => session.Properties = ParseProperties("properties", value)) },
             { ResourceEstimatesProperty, new PropertyHandler((session) => SerializeProperties(session.ResourceEstimates), (session, value) => session.ResourceEstimates = ParseProperties("resourceestimates", value)) },
             { PreparedStatementsProperty, new PropertyHandler((session) => SerializeProperties(session.PreparedStatements), (session, value) => session.PreparedStatements = ParseProperties("preparedstatements", value)) },
-            { AllowHostNameCNMismatchProperty, new PropertyHandler((session) => session.AllowHostNameCNMismatch.ToString(), (session, value) => session.AllowHostNameCNMismatch = bool.Parse(value)) },
+            { AllowHostNameCnMismatchProperty, new PropertyHandler((session) => session.AllowHostNameCnMismatch.ToString(), (session, value) => session.AllowHostNameCnMismatch = bool.Parse(value)) },
             { AllowSelfSignedServerCertProperty, new PropertyHandler((session) => session.AllowSelfSignedServerCert.ToString(), (session, value) => session.AllowSelfSignedServerCert = bool.Parse(value)) },
             { TrustedCertPathProperty, new PropertyHandler((session) => session.TrustedCertPath, (session, value) => session.TrustedCertPath = value) },
             { TrustedCertificateProperty, new PropertyHandler((session) => session.TrustedCertificate, (session, value) => session.TrustedCertificate = value) },
@@ -83,36 +83,36 @@ namespace Trino.Ado.Utilities
         /// <param name="additionalAuthProviders">List of authentication providers to use in addition to integrated JWT auth.</param>
         public static ClientSession UpdateSessionFromConnectionString(ClientSession session, string connectionString, IEnumerable<Type> additionalAuthProviders)
         {
-            DbConnectionStringBuilder connectionStringBuilder = new DbConnectionStringBuilder
+            var connectionStringBuilder = new DbConnectionStringBuilder
             {
                 ConnectionString = connectionString
             };
-            Dictionary<string, string> connectionStringProperties = connectionStringBuilder.Cast<KeyValuePair<string, object>>().ToDictionary(k => k.Key, v => v.Value.ToString(), StringComparer.InvariantCultureIgnoreCase);
+            var connectionStringProperties = connectionStringBuilder.Cast<KeyValuePair<string, object>>().ToDictionary(k => k.Key, v => v.Value.ToString(), StringComparer.InvariantCultureIgnoreCase);
 
-            int port = ClientSessionProperties.DefaultPort;
+            var port = ClientSessionProperties.DEFAULT_PORT;
             ISet<string> propertiesWithCustomHandling =
-                new HashSet<string>(StringComparer.InvariantCultureIgnoreCase) { HostProperty, PortProperty, EnableSSLProperty, AuthenticationTypeProperty };
+                new HashSet<string>(StringComparer.InvariantCultureIgnoreCase) { HostProperty, PortProperty, EnableSslProperty, AuthenticationTypeProperty };
 
-            connectionStringProperties.TryGetValue(AuthenticationTypeProperty, out string auth);
+            connectionStringProperties.TryGetValue(AuthenticationTypeProperty, out var auth);
 
-            if (!connectionStringProperties.TryGetValue(HostProperty, out string host))
+            if (!connectionStringProperties.TryGetValue(HostProperty, out var host))
             {
                 throw new ArgumentNullException($"{HostProperty} must be provided in the connection string.");
             }
 
-            bool enableSsl = true;
-            if (connectionStringProperties.TryGetValue(EnableSSLProperty, out string enableSSLValue))
+            var enableSsl = true;
+            if (connectionStringProperties.TryGetValue(EnableSslProperty, out var enableSslValue))
             {
-                if (!bool.TryParse(enableSSLValue, out bool result))
+                if (!bool.TryParse(enableSslValue, out var result))
                 {
-                    throw new ArgumentException($"{EnableSSLProperty} connection string property must be an boolean.");
+                    throw new ArgumentException($"{EnableSslProperty} connection string property must be an boolean.");
                 }
                 enableSsl = result;
             }
 
-            if (connectionStringProperties.TryGetValue(PortProperty, out string portValue))
+            if (connectionStringProperties.TryGetValue(PortProperty, out var portValue))
             {
-                if (!int.TryParse(portValue, out int result))
+                if (!int.TryParse(portValue, out var result))
                 {
                     throw new ArgumentException($"{PortProperty} connection string property must be an integer.");
                 }
@@ -120,7 +120,7 @@ namespace Trino.Ado.Utilities
             }
 
             // Attempt to locate authentication and assign to session
-            ISet<string> propertiesConsumedByAuth = string.IsNullOrEmpty(auth) ? new HashSet<string>()
+            var propertiesConsumedByAuth = string.IsNullOrEmpty(auth) ? new HashSet<string>()
                 : CreateAuth(session, connectionStringProperties, auth, additionalAuthProviders);
 
             // Hostname is required
@@ -134,9 +134,9 @@ namespace Trino.Ado.Utilities
             // Apply the remaining properies
             foreach (KeyValuePair<string, object> param in connectionStringBuilder)
             {
-                bool customHandled = propertiesWithCustomHandling.Contains(param.Key);
-                bool consumedByAuth = propertiesConsumedByAuth.Contains(param.Key);
-                bool sessionSet = TrySetSessionProperty(session.Properties, param.Key, param.Value);
+                var customHandled = propertiesWithCustomHandling.Contains(param.Key);
+                var consumedByAuth = propertiesConsumedByAuth.Contains(param.Key);
+                var sessionSet = TrySetSessionProperty(session.Properties, param.Key, param.Value);
 
                 if (!customHandled && !consumedByAuth && !sessionSet)
                 {
@@ -152,10 +152,10 @@ namespace Trino.Ado.Utilities
         /// </summary>
         public static string GetConnectionString(ClientSession session)
         {
-            DbConnectionStringBuilder connectionString = new DbConnectionStringBuilder();
-            foreach (KeyValuePair<string, PropertyHandler> property in propertyHandlers)
+            var connectionString = new DbConnectionStringBuilder();
+            foreach (var property in _propertyHandlers)
             {
-                string propertyValue = property.Value.Serializer.Invoke(session.Properties);
+                var propertyValue = property.Value.Serializer.Invoke(session.Properties);
                 if (!string.IsNullOrEmpty(propertyValue))
                 {
                     connectionString.Add(property.Key, property.Value.Serializer.Invoke(session.Properties));
@@ -165,17 +165,17 @@ namespace Trino.Ado.Utilities
             // add authentication type
             if (session.Auth != null)
             {
-                Type authType = session.Auth.GetType();
+                var authType = session.Auth.GetType();
                 connectionString.Add(AuthenticationTypeProperty, session.Auth.GetType().Name);
 
                 // get authentication properties
-                foreach (PropertyInfo property in authType.GetProperties())
+                foreach (var property in authType.GetProperties())
                 {
-                    MethodInfo method = property.GetGetMethod(true);
+                    var method = property.GetGetMethod(true);
                     // if property is not private
                     if (method != null && !method.IsPrivate)
                     {
-                        object propertyValue = property.GetValue(session.Auth);
+                        var propertyValue = property.GetValue(session.Auth);
                         if (propertyValue != null)
                         {
                             connectionString.Add(property.Name, property.GetValue(session.Auth).ToString());
@@ -192,9 +192,9 @@ namespace Trino.Ado.Utilities
         /// </summary>
         private static bool TrySetSessionProperty(ClientSessionProperties sessionProperties, string key, object value)
         {
-            if (propertyHandlers.ContainsKey(key.ToLower()))
+            if (_propertyHandlers.ContainsKey(key.ToLower()))
             {
-                propertyHandlers[key.ToLower()].Deserializer.Invoke(sessionProperties, value.ToString());
+                _propertyHandlers[key.ToLower()].Deserializer.Invoke(sessionProperties, value.ToString());
                 return true;
             }
             return false;
@@ -202,8 +202,8 @@ namespace Trino.Ado.Utilities
 
         private static string SerializeProperties(Dictionary<string, string> properties)
         {
-            StringBuilder sb = new StringBuilder();
-            foreach (KeyValuePair<string, string> property in properties)
+            var sb = new StringBuilder();
+            foreach (var property in properties)
             {
                 if (string.IsNullOrEmpty(property.Value) || property.Value.Contains(";") || property.Value.Contains(","))
                 {
@@ -235,19 +235,19 @@ namespace Trino.Ado.Utilities
                 return new Dictionary<string, string>();
             }
 
-            string cleanValue = value.Trim();
+            var cleanValue = value.Trim();
             if (cleanValue.Length == 0)
             {
                 return new Dictionary<string, string>();
             }
 
-            if (!keyValuePairs.IsMatch(cleanValue))
+            if (!_keyValuePairs.IsMatch(cleanValue))
             {
                 throw new FormatException($"Session property \"{name}\" contains key value pairs and should be comma delimetered and colon should separate keys and values: {value}");
             }
 
             // Matching Trino ODBC, which is comma-separated, colon key-value pairs
-            return cleanValue.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).AsEnumerable()
+            return cleanValue.Split([','], StringSplitOptions.RemoveEmptyEntries).AsEnumerable()
                 .Select(pair => pair.Trim().Split(':'))
                 .ToDictionary(pair => pair[0], pair => pair[1]);
         }
@@ -263,7 +263,7 @@ namespace Trino.Ado.Utilities
             string authMode,
             IEnumerable<Type> additionalAuthProviders)
         {
-            Dictionary<string, Type> authTypes = BuildAuthTypesMap(additionalAuthProviders);
+            var authTypes = BuildAuthTypesMap(additionalAuthProviders);
             ISet<string> handledProperties = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
 
             if (!authTypes.ContainsKey(authMode))
@@ -271,10 +271,10 @@ namespace Trino.Ado.Utilities
                 throw new ArgumentException($"Authentication type {authMode} not available. Current auth modes available are: {string.Join(", ", authTypes.Keys)}");
             }
 
-            PropertyInfo[] authProperties = authTypes[authMode].GetProperties();
+            var authProperties = authTypes[authMode].GetProperties();
             // create instance of authClientTypeNames[auth]
-            ITrinoAuth connectionAuthorization = (ITrinoAuth)Activator.CreateInstance(authTypes[authMode]);
-            foreach (PropertyInfo prop in authProperties)
+            var connectionAuthorization = (ITrinoAuth)Activator.CreateInstance(authTypes[authMode]);
+            foreach (var prop in authProperties)
             {
                 if (connectionStringProperties.ContainsKey(prop.Name))
                 {
@@ -294,14 +294,14 @@ namespace Trino.Ado.Utilities
         private static Dictionary<string, Type> BuildAuthTypesMap(IEnumerable<Type> additionalAuthProviders)
         {
             // JWT is built in, but additional auth providers can originate from other DLLs to keep dependencies minimal
-            Type jwtAuth = typeof(TrinoJWTAuth);
-            Type ldapAuth = typeof(LDAPAuth);
-            Type basicAuth = typeof(BasicAuth);
-            Dictionary<string, Type> authTypes = new Dictionary<string, Type>(StringComparer.InvariantCultureIgnoreCase) { { jwtAuth.Name, jwtAuth }, { ldapAuth.Name, ldapAuth }, {basicAuth.Name, basicAuth} };
+            var jwtAuth = typeof(TrinoJwtAuth);
+            var ldapAuth = typeof(LdapAuth);
+            var basicAuth = typeof(BasicAuth);
+            var authTypes = new Dictionary<string, Type>(StringComparer.InvariantCultureIgnoreCase) { { jwtAuth.Name, jwtAuth }, { ldapAuth.Name, ldapAuth }, {basicAuth.Name, basicAuth} };
 
             if (additionalAuthProviders != null)
             {
-                foreach (Type type in additionalAuthProviders)
+                foreach (var type in additionalAuthProviders)
                 {
                     authTypes.Add(type.Name, type);
                 }

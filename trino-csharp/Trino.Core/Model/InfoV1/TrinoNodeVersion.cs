@@ -1,7 +1,6 @@
-namespace Trino.Core.Model.InfoV1
+namespace Trino.Core.Model.InfoV1;
+
+public class TrinoNodeVersion
 {
-    public class TrinoNodeVersion
-    {
-        public string version { get; set; }
-    }
+    public string Version { get; set; }
 }

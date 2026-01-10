@@ -1,10 +1,9 @@
-namespace Trino.Core.Model.InfoV1
+namespace Trino.Core.Model.InfoV1;
+
+public class TrinoInfo
 {
-    public class TrinoInfo
-    {
-        public string uptime { get; set; }
-        public TrinoNodeVersion nodeVersion { get; set; }
-        public string environment { get; set; }
-        public bool starting { get; set; }
-    }
+    public string Uptime { get; set; }
+    public TrinoNodeVersion NodeVersion { get; set; }
+    public string Environment { get; set; }
+    public bool Starting { get; set; }
 }

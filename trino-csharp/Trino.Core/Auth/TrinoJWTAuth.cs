@@ -1,48 +1,47 @@
 using System.Net.Http;
 
-namespace Trino.Core.Auth
+namespace Trino.Core.Auth;
+
+/// <summary>
+/// A credential containing a bearer token
+/// </summary>
+public class TrinoJwtAuth : ITrinoAuth
 {
+    public static string AccessTokenProperty = "AccessToken";
+
     /// <summary>
-    /// A credential containing a bearer token
+    /// Create an JWT credential.
     /// </summary>
-    public class TrinoJWTAuth : ITrinoAuth
+    public TrinoJwtAuth()
     {
-        public static string AccessTokenProperty = "AccessToken";
+    }
 
-        /// <summary>
-        /// Create an JWT credential.
-        /// </summary>
-        public TrinoJWTAuth()
+    /// <summary>
+    /// Bearer token (JWT)
+    /// </summary>
+    public string AccessToken
+    {
+        get;
+        set;
+    }
+
+    public void AuthorizeAndValidate()
+    {
+        if (string.IsNullOrEmpty(AccessToken))
         {
+            throw new System.ArgumentException("TrinoJWTAuth: AccessToken property is null or empty");
         }
+    }
 
-        /// <summary>
-        /// Bearer token (JWT)
-        /// </summary>
-        public string AccessToken
+    /// <summary>
+    /// Modify the Trino request with authentication
+    /// </summary>
+    /// <param name="httpRequestMessage">Http request message</param>
+    public virtual void AddCredentialToRequest(HttpRequestMessage httpRequestMessage)
+    {
+        if (!string.IsNullOrEmpty(AccessToken))
         {
-            get;
-            set;
-        }
-
-        public void AuthorizeAndValidate()
-        {
-            if (string.IsNullOrEmpty(AccessToken))
-            {
-                throw new System.ArgumentException("TrinoJWTAuth: AccessToken property is null or empty");
-            }
-        }
-
-        /// <summary>
-        /// Modify the Trino request with authentication
-        /// </summary>
-        /// <param name="httpRequestMessage">Http request message</param>
-        public virtual void AddCredentialToRequest(HttpRequestMessage httpRequestMessage)
-        {
-            if (!string.IsNullOrEmpty(AccessToken))
-            {
-                httpRequestMessage.Headers.Add("Authorization", "Bearer " + AccessToken);
-            }
+            httpRequestMessage.Headers.Add("Authorization", "Bearer " + AccessToken);
         }
     }
 }

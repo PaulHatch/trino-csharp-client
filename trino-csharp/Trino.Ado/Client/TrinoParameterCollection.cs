@@ -12,7 +12,7 @@ namespace Trino.Ado.Client
     /// </summary>
     public class TrinoParameterCollection : DbParameterCollection
     {
-        private readonly List<IDataParameter> parameters = new List<IDataParameter>();
+        private readonly List<IDataParameter> parameters = [];
 
         public override bool IsFixedSize => false;
 
@@ -26,7 +26,11 @@ namespace Trino.Ado.Client
 
         public override int Add(object value)
         {
-            if (value == null) throw new ArgumentNullException(nameof(value));
+            if (value == null)
+            {
+                throw new ArgumentNullException(nameof(value));
+            }
+
             if (value is IDataParameter parameter)
             {
                 parameters.Add(parameter);
@@ -38,7 +42,11 @@ namespace Trino.Ado.Client
 
         public override void AddRange(Array values)
         {
-            if (values == null) throw new ArgumentNullException(nameof(values));
+            if (values == null)
+            {
+                throw new ArgumentNullException(nameof(values));
+            }
+
             foreach (var value in values)
             {
                 Add(value);
@@ -63,7 +71,11 @@ namespace Trino.Ado.Client
 
         public override void CopyTo(Array array, int index)
         {
-            if (array == null) throw new ArgumentNullException(nameof(array));
+            if (array == null)
+            {
+                throw new ArgumentNullException(nameof(array));
+            }
+
             ((IList)parameters).CopyTo(array, index);
         }
 
@@ -91,7 +103,11 @@ namespace Trino.Ado.Client
 
         public override void Insert(int index, object value)
         {
-            if (value == null) throw new ArgumentNullException(nameof(value));
+            if (value == null)
+            {
+                throw new ArgumentNullException(nameof(value));
+            }
+
             if (value is IDataParameter parameter)
             {
                 parameters.Insert(index, parameter);
@@ -140,7 +156,11 @@ namespace Trino.Ado.Client
 
         protected override void SetParameter(string parameterName, DbParameter value)
         {
-            if (value == null) throw new ArgumentNullException(nameof(value));
+            if (value == null)
+            {
+                throw new ArgumentNullException(nameof(value));
+            }
+
             var index = IndexOf(parameterName);
             if (index == -1)
             {

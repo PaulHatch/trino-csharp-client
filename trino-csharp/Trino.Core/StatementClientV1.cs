@@ -22,526 +22,518 @@ using Trino.Core.Model;
 using Trino.Core.Model.StatementV1;
 using static Trino.Core.QueryState;
 
-namespace Trino.Core
+namespace Trino.Core;
+
+/// <summary>
+/// Handles direct interactions with Trino statement rest API /v1/statement/
+/// </summary>
+internal class StatementClientV1 : AbstractClient<Statement>
 {
+    // Initialize values for client response delay
+    // Java client has 100ms initial delay, but 50ms provides noticably better performance in testing.
+    private double readDelay = _initialPageReadDelayMsec;
+    private int readCount = 0;
+    private static readonly int _initialPageReadDelayMsec = (int)TimeSpan.FromMilliseconds(50).TotalMilliseconds;
+    private static readonly int _maxReadDelayMsec = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
+    // Java client does 100ms backoff but this affects query performance especially for metadata and cache operations.
+    // This backoff produces less calls than the Java client.
+    private static readonly double _backoffAmount = 1.2;
+
+    private static readonly HashSet<HttpStatusCode> _ok = [HttpStatusCode.OK];
+    private static readonly HashSet<HttpStatusCode> _oKorNoContent = [HttpStatusCode.OK, HttpStatusCode.NoContent];
+
     /// <summary>
-    /// Handles direct interactions with Trino statement rest API /v1/statement/
+    /// The default prefix for a parameterized query used when properties are provided.
     /// </summary>
-    internal class StatementClientV1 : AbstractClient<Statement>
+    private string ParameterizedQueryPrefix => Session.Properties.ServerType.ToLower();
+
+    /// <summary>
+    /// Client capabilities is a comma separated list. Parametric datetime allows variable precision date times.
+    /// </summary>
+    private const string _clientCapabilities = "PARAMETRIC_DATETIME";
+
+    // Timeout properties
+    private readonly Stopwatch stopwatch = new Stopwatch();
+
+    /// <summary>
+    /// Last statement v1 response. Used to get stats and status from the server.
+    /// </summary>
+    private Statement Statement { get; set; }
+    private readonly ClientSessionOutput sessionSet = new ClientSessionOutput();
+
+    /// <summary>
+    /// The current executing state of the query.
+    /// </summary>
+    internal QueryState State { get; private set; }
+
+    public bool IsTimeout =>
+        Session.Properties.Timeout.HasValue
+        && Session.Properties.Timeout.Value.Ticks > 0
+        && stopwatch.ElapsedTicks > Session.Properties.Timeout.Value.Ticks;
+
+    protected override string ResourcePath => throw new NotImplementedException();
+
+    /// <summary>
+    /// Constructor
+    /// </summary>
+    internal StatementClientV1(
+        ClientSession session,
+        CancellationToken cancellationToken,
+        ILoggerWrapper logger = null) : base(session, logger, cancellationToken)
     {
-        // Initialize values for client response delay
-        // Java client has 100ms initial delay, but 50ms provides noticably better performance in testing.
-        private double readDelay = INITIAL_PAGE_READ_DELAY_MSEC;
-        private int readCount = 0;
-        private static readonly int INITIAL_PAGE_READ_DELAY_MSEC = (int)TimeSpan.FromMilliseconds(50).TotalMilliseconds;
-        private static readonly int MAX_READ_DELAY_MSEC = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
-        // Java client does 100ms backoff but this affects query performance especially for metadata and cache operations.
-        // This backoff produces less calls than the Java client.
-        private static readonly double BACKOFF_AMOUNT = 1.2;
+        stopwatch.Start();
+        State = new QueryState();
 
-        private static readonly HashSet<HttpStatusCode> OK = new HashSet<HttpStatusCode> { HttpStatusCode.OK };
-        private static readonly HashSet<HttpStatusCode> OKorNoContent = new HashSet<HttpStatusCode> { HttpStatusCode.OK, HttpStatusCode.NoContent };
+        var handler = Session.Properties.CompressionDisabled ? new HttpClientHandler() : new HttpClientHandler() { AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate };
 
-        /// <summary>
-        /// The default prefix for a parameterized query used when properties are provided.
-        /// </summary>
-        private string parameterizedQueryPrefix
+
+        if (session.Properties.UseSystemTrustStore)
         {
-            get => Session.Properties.ServerType.ToLower();
+            handler.ClientCertificateOptions = ClientCertificateOption.Automatic;
         }
-
-        /// <summary>
-        /// Client capabilities is a comma separated list. Parametric datetime allows variable precision date times.
-        /// </summary>
-        private const string clientCapabilities = "PARAMETRIC_DATETIME";
-
-        // Timeout properties
-        private readonly Stopwatch stopwatch = new Stopwatch();
-
-        /// <summary>
-        /// Last statement v1 response. Used to get stats and status from the server.
-        /// </summary>
-        private Statement Statement { get; set; }
-        private readonly ClientSessionOutput sessionSet = new ClientSessionOutput();
-
-        /// <summary>
-        /// The current executing state of the query.
-        /// </summary>
-        internal QueryState State { get; private set; }
-
-        public bool IsTimeout
+        else
         {
-            get => Session.Properties.Timeout.HasValue
-                && Session.Properties.Timeout.Value.Ticks > 0
-                && stopwatch.ElapsedTicks > Session.Properties.Timeout.Value.Ticks;
-        }
-
-        protected override string ResourcePath => throw new NotImplementedException();
-
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        internal StatementClientV1(
-            ClientSession session,
-            CancellationToken cancellationToken,
-            ILoggerWrapper logger = null) : base(session, logger, cancellationToken)
-        {
-            this.stopwatch.Start();
-            this.State = new QueryState();
-
-            HttpClientHandler handler = this.Session.Properties.CompressionDisabled ? new HttpClientHandler() : new HttpClientHandler() { AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate };
-
-
-            if (session.Properties.UseSystemTrustStore)
+            if (!string.IsNullOrEmpty(session.Properties.TrustedCertPath))
             {
-                handler.ClientCertificateOptions = ClientCertificateOption.Automatic;
-            }
-            else
-            {
-                if (!string.IsNullOrEmpty(session.Properties.TrustedCertPath))
+                try
                 {
-                    try
-                    {
-                        X509Certificate2 cert = new X509Certificate2(session.Properties.TrustedCertPath);
-                        handler.ClientCertificates.Add(cert);
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new InvalidOperationException("Failed to load trusted certificate.", ex);
-                    }
+                    var cert = new X509Certificate2(session.Properties.TrustedCertPath);
+                    handler.ClientCertificates.Add(cert);
                 }
-                else if (!string.IsNullOrEmpty(session.Properties.TrustedCertificate))
+                catch (Exception ex)
                 {
-                    try
-                    {
-                        X509Certificate2 cert = ConvertPemToX509Certificate(session.Properties.TrustedCertificate);
-                        handler.ClientCertificates.Add(cert);
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new InvalidOperationException("Failed to load trusted certificate from PEM string.", ex);
-                    }
+                    throw new InvalidOperationException("Failed to load trusted certificate.", ex);
                 }
             }
-
-            handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage, X509Certificate2, x509Chain, sslPolicyErrors) =>
+            else if (!string.IsNullOrEmpty(session.Properties.TrustedCertificate))
             {
-                // Allow CN mismatch
-                if (session.Properties.AllowHostNameCNMismatch
-                    && sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
+                try
                 {
-                    return true;
+                    var cert = ConvertPemToX509Certificate(session.Properties.TrustedCertificate);
+                    handler.ClientCertificates.Add(cert);
                 }
-
-                // Allow self-signed certificates
-                if (session.Properties.AllowSelfSignedServerCert
-                    && sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors
-                    && x509Chain.ChainStatus.Length == 1
-                    && x509Chain.ChainStatus[0].Status == X509ChainStatusFlags.UntrustedRoot)
+                catch (Exception ex)
                 {
-                    return true;
+                    throw new InvalidOperationException("Failed to load trusted certificate from PEM string.", ex);
                 }
-
-                // Default validation is not to allow any policy errors.
-                return sslPolicyErrors == SslPolicyErrors.None;
-            };
-
-            this.httpClient = new HttpClient(handler);
-            this.httpClient.Timeout = Constants.HttpConnectionTimeout;
-
-            if (!this.Session.Properties.CompressionDisabled)
-            {
-                httpClient.DefaultRequestHeaders.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
             }
         }
 
-        /// <summary>
-        /// Converts an embedded PEM-formatted certificate string into an X509Certificate2 object.
-        /// </summary>
-        /// <param name="pemString">The PEM-formatted certificate string, including "-----BEGIN CERTIFICATE-----" and "-----END CERTIFICATE-----" markers.</param>
-        /// <returns>An X509Certificate2 object representing the certificate.</returns>
-        internal static X509Certificate2 ConvertPemToX509Certificate(string pemString)
+        handler.ServerCertificateCustomValidationCallback = (httpRequestMessage, x509Certificate2, x509Chain, sslPolicyErrors) =>
         {
-            // Remove the PEM header and footer, extracting only the Base64 encoded portion
-            string base64String = pemString
-                .Replace("-----BEGIN CERTIFICATE-----", string.Empty)
-                .Replace("-----END CERTIFICATE-----", string.Empty)
-                .Replace("\r", string.Empty)
-                .Replace("\n", string.Empty)
-                .Trim();
-
-            // Decode the Base64 string into a byte array
-            byte[] certBytes = Convert.FromBase64String(base64String);
-
-            // Create and return an X509Certificate2 object from the byte array
-            return new X509Certificate2(certBytes);
-        }
-
-        /// <summary>
-        /// Get response from Trino server.
-        /// </summary>
-        internal async Task<TrinoStats> GetInitialResponse(string statement, IEnumerable<QueryParameter> parameters, CancellationToken cancellationToken)
-        {
-            string responseContent = null;
-            try
+            // Allow CN mismatch
+            if (session.Properties.AllowHostNameCnMismatch
+                && sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
             {
-                using (HttpRequestMessage queryRequest = this.BuildInitialQueryRequest(statement, parameters))
-                {
-                    logger?.LogDebug("Trino: sending request at {1} msec: {0}", queryRequest.RequestUri.ToString(), stopwatch.ElapsedMilliseconds);
-                    responseContent = await GetResourceAsync(
-                        httpClient,
-                        this.RetryableResponses,
-                        this.Session,
-                        queryRequest,
-                        OK,
-                        cancellationToken).ConfigureAwait(false);
-
-                    logger?.LogDebug("Trino: got response content: {0}", responseContent);
-                    this.Statement = JsonSerializer.Deserialize<Statement>(responseContent, JsonSerializerConfig.Options);
-                    logger?.LogInformation("Query created queryId at {1} msec: {0}", Statement?.id, stopwatch.ElapsedMilliseconds);
-                    return this.Statement.stats;
-                }
+                return true;
             }
-            catch (Exception e)
+
+            // Allow self-signed certificates
+            if (session.Properties.AllowSelfSignedServerCert
+                && sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors
+                && x509Chain.ChainStatus.Length == 1
+                && x509Chain.ChainStatus[0].Status == X509ChainStatusFlags.UntrustedRoot)
             {
-                if (responseContent != null)
+                return true;
+            }
+
+            // Default validation is not to allow any policy errors.
+            return sslPolicyErrors == SslPolicyErrors.None;
+        };
+
+        HttpClient = new HttpClient(handler);
+        HttpClient.Timeout = Constants.HttpConnectionTimeout;
+
+        if (!Session.Properties.CompressionDisabled)
+        {
+            HttpClient.DefaultRequestHeaders.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
+        }
+    }
+
+    /// <summary>
+    /// Converts an embedded PEM-formatted certificate string into an X509Certificate2 object.
+    /// </summary>
+    /// <param name="pemString">The PEM-formatted certificate string, including "-----BEGIN CERTIFICATE-----" and "-----END CERTIFICATE-----" markers.</param>
+    /// <returns>An X509Certificate2 object representing the certificate.</returns>
+    internal static X509Certificate2 ConvertPemToX509Certificate(string pemString)
+    {
+        // Remove the PEM header and footer, extracting only the Base64 encoded portion
+        var base64String = pemString
+            .Replace("-----BEGIN CERTIFICATE-----", string.Empty)
+            .Replace("-----END CERTIFICATE-----", string.Empty)
+            .Replace("\r", string.Empty)
+            .Replace("\n", string.Empty)
+            .Trim();
+
+        // Decode the Base64 string into a byte array
+        var certBytes = Convert.FromBase64String(base64String);
+
+        // Create and return an X509Certificate2 object from the byte array
+        return new X509Certificate2(certBytes);
+    }
+
+    /// <summary>
+    /// Get response from Trino server.
+    /// </summary>
+    internal async Task<TrinoStats> GetInitialResponse(string statement, IEnumerable<QueryParameter> parameters, CancellationToken cancellationToken)
+    {
+        string responseContent = null;
+        try
+        {
+            using (var queryRequest = BuildInitialQueryRequest(statement, parameters))
+            {
+                Logger?.LogDebug("Trino: sending request at {1} msec: {0}", queryRequest.RequestUri.ToString(), stopwatch.ElapsedMilliseconds);
+                responseContent = await GetResourceAsync(
+                    HttpClient,
+                    RetryableResponses,
+                    Session,
+                    queryRequest,
+                    _ok,
+                    cancellationToken).ConfigureAwait(false);
+
+                Logger?.LogDebug("Trino: got response content: {0}", responseContent);
+                Statement = JsonSerializer.Deserialize<Statement>(responseContent, JsonSerializerConfig.Options);
+                Logger?.LogInformation("Query created queryId at {1} msec: {0}", Statement?.ID, stopwatch.ElapsedMilliseconds);
+                return Statement.Stats;
+            }
+        }
+        catch (Exception e)
+        {
+            if (responseContent != null)
+            {
+                throw new TrinoException("Error starting query. Got response: " + responseContent, e);
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Build POST request to start query.
+    /// </summary>
+    private HttpRequestMessage BuildInitialQueryRequest(string query, IEnumerable<QueryParameter> parameters)
+    {
+        if (Session.Properties.Server == null)
+        {
+            throw new TrinoException("Invalid server URL: " + Session.Properties.Server);
+        }
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{Session.Properties.Server}v1/statement");
+
+        // Handle parameterized queries on the server side by converting any parameterized query into a prepared statement.
+        var additionalPreparedStatements = new Dictionary<string, string>();
+        if (parameters != null && parameters.Any())
+        {
+            var parameterizedQueryId = ParameterizedQueryPrefix + Guid.NewGuid().ToString().Replace("-", "");
+            additionalPreparedStatements.Add(parameterizedQueryId, query);
+            Logger?.LogDebug("Trino: Converting parameterized query to prepared statement: {0}", query);
+            query = $"EXECUTE {parameterizedQueryId} USING {string.Join(", ", parameters.Select(p => p.SqlExpressionValue))}";
+            Logger?.LogDebug("Trino: Converted parameterized query to prepared statement: {0}", query);
+        }
+        AddHeadersToRequest(request, additionalPreparedStatements);
+        request.Content = new StringContent(query);
+        return request;
+    }
+
+    /// <summary>
+    /// Delete query on server.
+    /// </summary>
+    internal async Task<bool> Cancel()
+    {
+        return await Cancel(QueryCancellationReason.USER_CANCEL).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Delete query on server.
+    /// </summary>
+    private async Task<bool> Cancel(QueryCancellationReason reason)
+    {
+        Logger?.LogInformation("Cancelling due to {0} queryId:{1}", reason.ToString(), Statement?.ID);
+        // Sets client aborted state and terminates query.
+        if (State.StateTransition(TrinoQueryStates.CLIENT_ABORTED, TrinoQueryStates.RUNNING))
+        {
+            Logger?.LogInformation("Trino: Sending cancellation request queryId:{0}", Statement?.ID);
+            using (var request = new HttpRequestMessage(HttpMethod.Delete, Statement.NextUri))
+            {
+                // do not use cancellation token here as the query is already cancelled
+                var cancellationResponse = await GetResourceAsync(
+                    HttpClient,
+                    RetryableResponses,
+                    Session,
+                    request,
+                    _oKorNoContent,
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+            Logger?.LogInformation("Trino: Cancelled", Statement?.ID);
+        }
+        else
+        {
+            Logger?.LogInformation("Trino: Could not cancel query, already cancelled queryId:{0}, state:{1}", Statement?.ID, State.ToString());
+        }
+        return State.IsClientAborted;
+    }
+
+    /// <summary>
+    /// Fetches the next Trino page with data. Similar to Java client class with same name.
+    /// </summary>
+    internal async Task<ResponseQueueStatement> Advance()
+    {
+        try
+        {
+            if (Statement.NextUri.Contains("/executing"))
+            {
+                if (Statement.NextUri.Contains("?"))
                 {
-                    throw new TrinoException("Error starting query. Got response: " + responseContent, e);
+                    Statement.NextUri += $"&targetResultSize={Constants.MAX_TARGET_RESULT_SIZE_MB}MB";
                 }
                 else
                 {
-                    throw e;
+                    Statement.NextUri += $"?targetResultSize={Constants.MAX_TARGET_RESULT_SIZE_MB}MB";
                 }
             }
-        }
 
-        /// <summary>
-        /// Build POST request to start query.
-        /// </summary>
-        private HttpRequestMessage BuildInitialQueryRequest(string query, IEnumerable<QueryParameter> parameters)
+            Logger?.LogDebug("Trino: request: {1}", Statement.NextUri);
+
+            var responseStr = await GetAsync(new Uri(Statement.NextUri), _ok).ConfigureAwait(false);
+            Logger?.LogDebug("Trino: response: {1}", responseStr);
+            var response = JsonSerializer.Deserialize<QueryResultPage>(responseStr, JsonSerializerConfig.Options);
+            Logger?.LogDebug("Trino: response at {0} msec with state {1}", stopwatch.ElapsedMilliseconds,
+                response.Stats.State);
+
+            // Note, the size is estimated based on the response string size which is not the actual deserialized size.
+            var responseQueueItem = new ResponseQueueStatement(response, responseStr.Length);
+            if (responseQueueItem.Response.Error != null)
+            {
+                State.StateTransition(TrinoQueryStates.CLIENT_ERROR, TrinoQueryStates.RUNNING);
+                throw new TrinoException(responseQueueItem.Response.Error.Message,
+                    responseQueueItem.Response.Error);
+            }
+
+            // Make status available
+            Statement = responseQueueItem.Response;
+
+            // If no next URI, the query is completed.
+            if (Statement.IsLastPage)
+            {
+                Finish();
+            }
+            else if (IsTimeout)
+            {
+                Logger?.LogInformation("Trino: Query timed out queryId:{0}, run time: {1} s, timeout {2} s.",
+                    Statement?.ID, stopwatch.Elapsed.TotalSeconds,
+                    Session.Properties.ClientRequestTimeout?.TotalSeconds);
+                await Cancel(QueryCancellationReason.TIMEOUT).ConfigureAwait(false);
+                throw new TimeoutException(
+                    $"Trino query ran for {stopwatch.Elapsed.TotalSeconds} s, exceeding the timeout of {Session.Properties.Timeout.Value.TotalSeconds} s.");
+            }
+
+            // Do not wait if the query had data - the next page may be ready immediately.
+            if (!responseQueueItem.Response.HasData && !State.IsFinished && readCount > 4)
+            {
+                Logger?.LogDebug("Trino: No data yet, backoff wait queryId:{0}, delay {1} msec", Statement?.ID,
+                    readDelay);
+                await Task.Delay((int)readDelay).ConfigureAwait(false);
+                if (readDelay < _maxReadDelayMsec)
+                {
+                    readDelay *= _backoffAmount;
+                }
+            }
+
+            readCount++;
+            return responseQueueItem;
+        }
+        catch (Exception)
         {
-            if (Session.Properties.Server == null)
+            if (CancellationToken.IsCancellationRequested)
             {
-                throw new TrinoException("Invalid server URL: " + Session.Properties.Server);
+                await Cancel(QueryCancellationReason.USER_CANCEL).ConfigureAwait(false);
+                throw new OperationCanceledException("Cancellation requested");
             }
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{Session.Properties.Server}v1/statement");
 
-            // Handle parameterized queries on the server side by converting any parameterized query into a prepared statement.
-            Dictionary<string, string> additionalPreparedStatements = new Dictionary<string, string>();
-            if (parameters != null && parameters.Any())
-            {
-                string parameterizedQueryId = parameterizedQueryPrefix + Guid.NewGuid().ToString().Replace("-", "");
-                additionalPreparedStatements.Add(parameterizedQueryId, query);
-                logger?.LogDebug("Trino: Converting parameterized query to prepared statement: {0}", query);
-                query = $"EXECUTE {parameterizedQueryId} USING {string.Join(", ", parameters.Select(p => p.SqlExpressionValue))}";
-                logger?.LogDebug("Trino: Converted parameterized query to prepared statement: {0}", query);
-            }
-            AddHeadersToRequest(request, additionalPreparedStatements);
-            request.Content = new StringContent(query);
-            return request;
+            throw;
         }
+    }
 
-        /// <summary>
-        /// Delete query on server.
-        /// </summary>
-        internal async Task<bool> Cancel()
+    /// <summary>
+    /// Set states to indicate the query has finished.
+    /// </summary>
+    private void Finish()
+    {
+        stopwatch.Stop();
+        Session.Update(sessionSet);
+        State.StateTransition(TrinoQueryStates.FINISHED, TrinoQueryStates.RUNNING);
+        Logger?.LogInformation("Trino: Query finished queryId:{0}", Statement?.ID);
+    }
+
+    /// <summary>
+    /// Capture all response headers and set session properties.
+    /// </summary>
+    protected override void ProcessResponseHeaders(HttpResponseHeaders headers)
+    {
+        var setCatalog = headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetCatalog).FirstOrDefault();
+        if (setCatalog != null)
         {
-            return await Cancel(QueryCancellationReason.USER_CANCEL).ConfigureAwait(false);
+            sessionSet.SetCatalog = setCatalog;
         }
 
-        /// <summary>
-        /// Delete query on server.
-        /// </summary>
-        private async Task<bool> Cancel(QueryCancellationReason reason = QueryCancellationReason.USER_CANCEL)
+        var setSchema = headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetSchema).FirstOrDefault();
+        if (setSchema != null)
         {
-            logger?.LogInformation("Cancelling due to {0} queryId:{1}", reason.ToString(), Statement?.id);
-            // Sets client aborted state and terminates query.
-            if (State.StateTransition(QueryState.TrinoQueryStates.CLIENT_ABORTED, QueryState.TrinoQueryStates.RUNNING))
-            {
-                logger?.LogInformation("Trino: Sending cancellation request queryId:{0}", Statement?.id);
-                using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, this.Statement.nextUri))
-                {
-                    // do not use cancellation token here as the query is already cancelled
-                    string cancellationResponse = await GetResourceAsync(
-                        httpClient,
-                        this.RetryableResponses,
-                        this.Session,
-                        request,
-                        OKorNoContent,
-                        CancellationToken.None).ConfigureAwait(false);
-                }
-                logger?.LogInformation("Trino: Cancelled", Statement?.id);
-            }
-            else
-            {
-                logger?.LogInformation("Trino: Could not cancel query, already cancelled queryId:{0}, state:{1}", Statement?.id, this.State.ToString());
-            }
-            return this.State.IsClientAborted;
+            sessionSet.SetSchema = setSchema;
         }
 
-        /// <summary>
-        /// Fetches the next Trino page with data. Similar to Java client class with same name.
-        /// </summary>
-        internal async Task<ResponseQueueStatement> Advance()
+        sessionSet.SetPath = headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetPath).FirstOrDefault();
+
+        var setAuthorizationUser = headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetAuthorizationUser).FirstOrDefault();
+        if (setAuthorizationUser != null)
         {
-            try
-            {
-                if (this.Statement.nextUri.Contains("/executing"))
-                {
-                    if (this.Statement.nextUri.Contains("?"))
-                    {
-                        this.Statement.nextUri += $"&targetResultSize={Constants.MaxTargetResultSizeMB}MB";
-                    }
-                    else
-                    {
-                        this.Statement.nextUri += $"?targetResultSize={Constants.MaxTargetResultSizeMB}MB";
-                    }
-                }
-
-                logger?.LogDebug("Trino: request: {1}", this.Statement.nextUri);
-
-                string responseStr = await this.GetAsync(new Uri(this.Statement.nextUri), OK).ConfigureAwait(false);
-                logger?.LogDebug("Trino: response: {1}", responseStr);
-                QueryResultPage response = JsonSerializer.Deserialize<QueryResultPage>(responseStr, JsonSerializerConfig.Options);
-                logger?.LogDebug("Trino: response at {0} msec with state {1}", stopwatch.ElapsedMilliseconds,
-                    response.stats.state);
-
-                // Note, the size is estimated based on the response string size which is not the actual deserialized size.
-                ResponseQueueStatement responseQueueItem = new ResponseQueueStatement(response, responseStr.Length);
-                if (responseQueueItem.Response.error != null)
-                {
-                    State.StateTransition(QueryState.TrinoQueryStates.CLIENT_ERROR, QueryState.TrinoQueryStates.RUNNING);
-                    throw new TrinoException(responseQueueItem.Response.error.message,
-                        responseQueueItem.Response.error);
-                }
-
-                // Make status available
-                this.Statement = responseQueueItem.Response;
-
-                // If no next URI, the query is completed.
-                if (this.Statement.IsLastPage)
-                {
-                    this.Finish();
-                }
-                else if (this.IsTimeout)
-                {
-                    logger?.LogInformation("Trino: Query timed out queryId:{0}, run time: {1} s, timeout {2} s.",
-                        Statement?.id, this.stopwatch.Elapsed.TotalSeconds,
-                        Session.Properties.ClientRequestTimeout.Value.TotalSeconds);
-                    await this.Cancel(QueryCancellationReason.TIMEOUT).ConfigureAwait(false);
-                    throw new TimeoutException(
-                        $"Trino query ran for {this.stopwatch.Elapsed.TotalSeconds} s, exceeding the timeout of {Session.Properties.Timeout.Value.TotalSeconds} s.");
-                }
-
-                // Do not wait if the query had data - the next page may be ready immediately.
-                if (!responseQueueItem.Response.HasData && !State.IsFinished && readCount > 4)
-                {
-                    logger?.LogDebug("Trino: No data yet, backoff wait queryId:{0}, delay {1} msec", Statement?.id,
-                        readDelay);
-                    await Task.Delay((int)readDelay).ConfigureAwait(false);
-                    if (readDelay < MAX_READ_DELAY_MSEC)
-                    {
-                        readDelay *= BACKOFF_AMOUNT;
-                    }
-                }
-
-                readCount++;
-                return responseQueueItem;
-            }
-            catch (Exception)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    await this.Cancel(QueryCancellationReason.USER_CANCEL).ConfigureAwait(false);
-                    throw new OperationCanceledException("Cancellation requested");
-                }
-
-                throw;
-            }
+            sessionSet.SetAuthorizationUser = setAuthorizationUser;
         }
 
-        /// <summary>
-        /// Set states to indicate the query has finished.
-        /// </summary>
-        private void Finish()
+        var resetAuthorizationUser = headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetAuthorizationUser).FirstOrDefault();
+        if (setAuthorizationUser != null)
         {
-            this.stopwatch.Stop();
-            this.Session.Update(this.sessionSet);
-            State.StateTransition(QueryState.TrinoQueryStates.FINISHED, QueryState.TrinoQueryStates.RUNNING);
-            logger?.LogInformation("Trino: Query finished queryId:{0}", Statement?.id);
+            if (bool.TryParse(resetAuthorizationUser, out var resetAuthorizationUserBool))
+            {
+                sessionSet.ResetAuthorizationUser = resetAuthorizationUserBool;
+            }
         }
 
-        /// <summary>
-        /// Capture all response headers and set session properties.
-        /// </summary>
-        protected override void ProcessResponseHeaders(HttpResponseHeaders headers)
+        foreach (var session in headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetSession))
         {
-            string setCatalog = headers.GetValuesOrEmpty(protocolHeaders.ResponseSetCatalog).FirstOrDefault();
-            if (setCatalog != null)
+            var keyValue = session.Split('=');
+            if (keyValue.Length != 2)
             {
-                this.sessionSet.SetCatalog = setCatalog;
+                continue;
             }
-
-            string setSchema = headers.GetValuesOrEmpty(protocolHeaders.ResponseSetSchema).FirstOrDefault();
-            if (setSchema != null)
-            {
-                this.sessionSet.SetSchema = setSchema;
-            }
-
-            this.sessionSet.SetPath = headers.GetValuesOrEmpty(protocolHeaders.ResponseSetPath).FirstOrDefault();
-
-            string setAuthorizationUser = headers.GetValuesOrEmpty(protocolHeaders.ResponseSetAuthorizationUser).FirstOrDefault();
-            if (setAuthorizationUser != null)
-            {
-                this.sessionSet.SetAuthorizationUser = setAuthorizationUser;
-            }
-
-            string resetAuthorizationUser = headers.GetValuesOrEmpty(protocolHeaders.ResponseSetAuthorizationUser).FirstOrDefault();
-            if (setAuthorizationUser != null)
-            {
-                if (bool.TryParse(resetAuthorizationUser, out bool resetAuthorizationUserBool))
-                {
-                    this.sessionSet.ResetAuthorizationUser = resetAuthorizationUserBool;
-                }
-            }
-
-            foreach (string session in headers.GetValuesOrEmpty(protocolHeaders.ResponseSetSession))
-            {
-                string[] keyValue = session.Split('=');
-                if (keyValue.Length != 2)
-                {
-                    continue;
-                }
-                this.sessionSet.SetSessionProperties.Add(keyValue[0], HttpUtility.UrlDecode(keyValue[1]));
-            }
-
-            foreach (string preparedStatement in headers.GetValuesOrEmpty(protocolHeaders.ResponseAddedPrepare))
-            {
-                string[] keyValue = preparedStatement.Split('=');
-                if (keyValue.Length != 2)
-                {
-                    throw new TrinoException("Invalid response header. Expecting key=value: " + protocolHeaders.ResponseAddedPrepare + ": " + preparedStatement);
-                }
-                string value = HttpUtility.UrlDecode(keyValue[1]);
-                this.sessionSet.ResponseAddedPrepare.Add(keyValue[0], value);
-            }
-
-            foreach (string deallocateStatement in headers.GetValuesOrEmpty(protocolHeaders.ResponseDeallocatedPrepare))
-            {
-                string[] keyValue = deallocateStatement.Split('=');
-                if (keyValue.Length != 2)
-                {
-                    throw new TrinoException("Invalid response header. Expecting key=value: " + protocolHeaders.ResponseDeallocatedPrepare + ": " + deallocateStatement);
-                }
-                string value = HttpUtility.UrlDecode(keyValue[1]);
-                this.sessionSet.ResponseDeallocatedPrepare.Add(keyValue[0], value);
-            }
+            sessionSet.SetSessionProperties.Add(keyValue[0], HttpUtility.UrlDecode(keyValue[1]));
         }
 
-        private void AddHeadersToRequest(HttpRequestMessage request, Dictionary<string, string> additionalPreparedStatements)
+        foreach (var preparedStatement in headers.GetValuesOrEmpty(ProtocolHeaders.ResponseAddedPrepare))
         {
-            request.Headers.Add(protocolHeaders.RequestClientCapabilities, clientCapabilities);
-
-            if (Session.Properties.AdditionalHeaders != null)
+            var keyValue = preparedStatement.Split('=');
+            if (keyValue.Length != 2)
             {
-                foreach (KeyValuePair<string, string> header in Session.Properties.AdditionalHeaders)
-                {
-                    request.Headers.Add(header.Key, header.Value);
-                }
+                throw new TrinoException("Invalid response header. Expecting key=value: " + ProtocolHeaders.ResponseAddedPrepare + ": " + preparedStatement);
             }
-
-            if (!string.IsNullOrEmpty(Session.Properties.Source))
-            {
-                request.Headers.Add(protocolHeaders.RequestSource, Session.Properties.Source);
-            }
-
-            if (!string.IsNullOrEmpty(Session.Properties.TraceToken))
-            {
-                request.Headers.Add(protocolHeaders.RequestTraceToken, Session.Properties.TraceToken);
-            }
-
-            if (Session.Properties.ClientTags.Count > 0)
-            {
-                request.Headers.Add(protocolHeaders.RequestClientTags, string.Join(",", Session.Properties.ClientTags));
-            }
-
-            if (!string.IsNullOrEmpty(Session.Properties.ClientInfo))
-            {
-                request.Headers.Add(protocolHeaders.RequestClientInfo, Session.Properties.ClientInfo);
-            }
-
-            if (!string.IsNullOrEmpty(Session.Properties.Catalog))
-            {
-                request.Headers.Add(protocolHeaders.RequestCatalog, Session.Properties.Catalog);
-            }
-
-            if (!string.IsNullOrEmpty(Session.Properties.Schema))
-            {
-                request.Headers.Add(protocolHeaders.RequestSchema, Session.Properties.Schema);
-            }
-
-            if (!string.IsNullOrEmpty(Session.Properties.Path))
-            {
-                request.Headers.Add(protocolHeaders.RequestPath, Session.Properties.Path);
-            }
-
-            if (Session.Properties.TimeZone != null)
-            {
-                request.Headers.Add(protocolHeaders.RequestTimeZone, Session.Properties.TimeZone);
-            }
-
-            if (Session.Properties.Locale != null)
-            {
-                request.Headers.Add(protocolHeaders.RequestLanguage, Session.Properties.Locale.ToString());
-            }
-
-            Dictionary<string, string> property = Session.Properties.Properties;
-            foreach (KeyValuePair<string, String> pair in property)
-            {
-                request.Headers.Add(protocolHeaders.RequestSession, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
-            }
-
-            Dictionary<string, string> resourceEstimates = Session.Properties.ResourceEstimates;
-            foreach (KeyValuePair<string, String> pair in resourceEstimates)
-            {
-                request.Headers.Add(protocolHeaders.RequestResourceEstimate, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
-            }
-
-            Dictionary<string, ClientSelectedRole> roles = Session.Properties.Roles;
-            foreach (KeyValuePair<string, ClientSelectedRole> pair in roles)
-            {
-                request.Headers.Add(protocolHeaders.RequestRole, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value.ToString())}");
-            }
-
-            Dictionary<string, string> extraCredentials = Session.Properties.ExtraCredentials;
-            foreach (KeyValuePair<string, string> pair in extraCredentials)
-            {
-                request.Headers.Add(protocolHeaders.RequestExtraCredential, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value.ToString())}");
-            }
-
-            foreach (KeyValuePair<string, string> pair in Session.Properties.PreparedStatements)
-            {
-                request.Headers.Add(protocolHeaders.RequestPreparedStatement, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value.ToString())}");
-            }
-
-            if (additionalPreparedStatements != null)
-            {
-                foreach (KeyValuePair<string, string> pair in additionalPreparedStatements)
-                {
-                    request.Headers.Add(protocolHeaders.RequestPreparedStatement, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value.ToString())}");
-                }
-            }
-
-            if (string.IsNullOrEmpty(Session.Properties.TransactionId))
-            {
-                request.Headers.Add(protocolHeaders.RequestTransactionId, Session.Properties.TransactionId);
-            }
+            var value = HttpUtility.UrlDecode(keyValue[1]);
+            sessionSet.ResponseAddedPrepare.Add(keyValue[0], value);
         }
 
-        private enum QueryCancellationReason
+        foreach (var deallocateStatement in headers.GetValuesOrEmpty(ProtocolHeaders.ResponseDeallocatedPrepare))
         {
-            TIMEOUT,
-            USER_CANCEL
+            var keyValue = deallocateStatement.Split('=');
+            if (keyValue.Length != 2)
+            {
+                throw new TrinoException("Invalid response header. Expecting key=value: " + ProtocolHeaders.ResponseDeallocatedPrepare + ": " + deallocateStatement);
+            }
+            var value = HttpUtility.UrlDecode(keyValue[1]);
+            sessionSet.ResponseDeallocatedPrepare.Add(keyValue[0], value);
         }
+    }
+
+    private void AddHeadersToRequest(HttpRequestMessage request, Dictionary<string, string> additionalPreparedStatements)
+    {
+        request.Headers.Add(ProtocolHeaders.RequestClientCapabilities, _clientCapabilities);
+
+        if (Session.Properties.AdditionalHeaders != null)
+        {
+            foreach (var header in Session.Properties.AdditionalHeaders)
+            {
+                request.Headers.Add(header.Key, header.Value);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(Session.Properties.Source))
+        {
+            request.Headers.Add(ProtocolHeaders.RequestSource, Session.Properties.Source);
+        }
+
+        if (!string.IsNullOrEmpty(Session.Properties.TraceToken))
+        {
+            request.Headers.Add(ProtocolHeaders.RequestTraceToken, Session.Properties.TraceToken);
+        }
+
+        if (Session.Properties.ClientTags.Count > 0)
+        {
+            request.Headers.Add(ProtocolHeaders.RequestClientTags, string.Join(",", Session.Properties.ClientTags));
+        }
+
+        if (!string.IsNullOrEmpty(Session.Properties.ClientInfo))
+        {
+            request.Headers.Add(ProtocolHeaders.RequestClientInfo, Session.Properties.ClientInfo);
+        }
+
+        if (!string.IsNullOrEmpty(Session.Properties.Catalog))
+        {
+            request.Headers.Add(ProtocolHeaders.RequestCatalog, Session.Properties.Catalog);
+        }
+
+        if (!string.IsNullOrEmpty(Session.Properties.Schema))
+        {
+            request.Headers.Add(ProtocolHeaders.RequestSchema, Session.Properties.Schema);
+        }
+
+        if (!string.IsNullOrEmpty(Session.Properties.Path))
+        {
+            request.Headers.Add(ProtocolHeaders.RequestPath, Session.Properties.Path);
+        }
+
+        if (Session.Properties.TimeZone != null)
+        {
+            request.Headers.Add(ProtocolHeaders.RequestTimeZone, Session.Properties.TimeZone);
+        }
+
+        if (Session.Properties.Locale != null)
+        {
+            request.Headers.Add(ProtocolHeaders.RequestLanguage, Session.Properties.Locale);
+        }
+
+        var property = Session.Properties.Properties;
+        foreach (var pair in property)
+        {
+            request.Headers.Add(ProtocolHeaders.RequestSession, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
+        }
+
+        var resourceEstimates = Session.Properties.ResourceEstimates;
+        foreach (var pair in resourceEstimates)
+        {
+            request.Headers.Add(ProtocolHeaders.RequestResourceEstimate, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
+        }
+
+        var roles = Session.Properties.Roles;
+        foreach (var pair in roles)
+        {
+            request.Headers.Add(ProtocolHeaders.RequestRole, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value.ToString())}");
+        }
+
+        var extraCredentials = Session.Properties.ExtraCredentials;
+        foreach (var pair in extraCredentials)
+        {
+            request.Headers.Add(ProtocolHeaders.RequestExtraCredential, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
+        }
+
+        foreach (var pair in Session.Properties.PreparedStatements)
+        {
+            request.Headers.Add(ProtocolHeaders.RequestPreparedStatement, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
+        }
+
+        if (additionalPreparedStatements != null)
+        {
+            foreach (var pair in additionalPreparedStatements)
+            {
+                request.Headers.Add(ProtocolHeaders.RequestPreparedStatement, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
+            }
+        }
+
+        if (string.IsNullOrEmpty(Session.Properties.TransactionId))
+        {
+            request.Headers.Add(ProtocolHeaders.RequestTransactionId, Session.Properties.TransactionId);
+        }
+    }
+
+    private enum QueryCancellationReason
+    {
+        TIMEOUT,
+        USER_CANCEL
     }
 }

@@ -14,8 +14,8 @@ namespace Trino.Core.Auth
         public string Scope { get; set; }
 
         public string ClientSecret { private get; set; }
-        private string _accessToken;
-        private DateTime _tokenExpiry;
+        private string accessToken;
+        private DateTime tokenExpiry;
 
         public TrinoOauthClientSecretAuth()
         {
@@ -39,18 +39,18 @@ namespace Trino.Core.Auth
             }
 
             var tokenResponse = GetTokenAsync(TokenEndpoint, ClientId, ClientSecret, Scope).Result;
-            _accessToken = tokenResponse.AccessToken;
-            _tokenExpiry = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn);
+            accessToken = tokenResponse.AccessToken;
+            tokenExpiry = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn);
         }
 
         public void AddCredentialToRequest(HttpRequestMessage httpRequestMessage)
         {
-            if (string.IsNullOrEmpty(_accessToken) || DateTime.UtcNow >= _tokenExpiry)
+            if (string.IsNullOrEmpty(accessToken) || DateTime.UtcNow >= tokenExpiry)
             {
                 AuthorizeAndValidate();
             }
 
-            httpRequestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
+            httpRequestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
         }
 
         private async Task<TokenResponse> GetTokenAsync(string tokenEndpoint, string clientId, string clientSecret, string scope)
@@ -59,13 +59,12 @@ namespace Trino.Core.Auth
             {
                 var request = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint)
                 {
-                    Content = new FormUrlEncodedContent(new[]
-                    {
+                    Content = new FormUrlEncodedContent([
                         new KeyValuePair<string, string>("client_id", clientId),
                         new KeyValuePair<string, string>("client_secret", clientSecret),
                         new KeyValuePair<string, string>("grant_type", "client_credentials"),
                         new KeyValuePair<string, string>("scope", scope)
-                    })
+                    ])
                 };
 
                 var response = await httpClient.SendAsync(request);

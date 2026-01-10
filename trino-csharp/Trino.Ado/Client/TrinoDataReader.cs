@@ -1,5 +1,4 @@
 using Trino.Core;
-using Trino.Core.Model.StatementV1;
 using Trino.Core.Types;
 using Trino.Core.Utils;
 
@@ -20,7 +19,7 @@ namespace Trino.Ado.Client
     public class TrinoDataReader : DbDataReader
     {
         public override int Depth => 1;
-        public override bool IsClosed { get { return isClosed; } }
+        public override bool IsClosed => isClosed;
         private bool isClosed = false;
         private readonly Records records;
 
@@ -32,7 +31,7 @@ namespace Trino.Ado.Client
                 {
                     return 0;
                 }
-                return records.Stats.processedRows > int.MaxValue ? int.MaxValue : (int)records.Stats.processedRows;
+                return records.Stats.ProcessedRows > int.MaxValue ? int.MaxValue : (int)records.Stats.ProcessedRows;
             }
         }
 
@@ -77,21 +76,9 @@ namespace Trino.Ado.Client
         /// </summary>
         public override bool HasRows => records.HasData().SafeResult();
 
-        public override object this[int i]
-        {
-            get
-            {
-                return records.GetValue<object>(i);
-            }
-        }
+        public override object this[int i] => records.GetValue<object>(i);
 
-        public override object this[string name]
-        {
-            get
-            {
-                return records.GetValue<object>(GetOrdinal(name));
-            }
-        }
+        public override object this[string name] => records.GetValue<object>(GetOrdinal(name));
 
         /// <summary>
         /// Does not affect the TrinoDataReader except to set the state to closed.
@@ -113,14 +100,14 @@ namespace Trino.Ado.Client
 
         public override long GetBytes(int i, long fieldOffset, byte[] buffer, int bufferoffset, int length)
         {
-            byte[] value = records.GetValue<byte[]>(i, "varbinary", false);
+            var value = records.GetValue<byte[]>(i, "varbinary", false);
             if (value.Length > buffer.Length - bufferoffset)
             {
                 throw new ArgumentException("Buffer is too small to hold the requested value");
             }
 
             // fill the buffer with the value
-            for (int j = 0; j < length; j++)
+            for (var j = 0; j < length; j++)
             {
                 buffer[j + bufferoffset] = value[(int)fieldOffset + j];
             }
@@ -137,7 +124,7 @@ namespace Trino.Ado.Client
         /// </summary>
         public override long GetChars(int i, long fieldoffset, char[] buffer, int bufferoffset, int length)
         {
-            string value = records.GetValue<string>(i);
+            var value = records.GetValue<string>(i);
             if (value == null)
             {
                 return 0;
@@ -148,7 +135,7 @@ namespace Trino.Ado.Client
             }
 
             // fill the buffer with the value
-            for (int j = 0; j < length; j++)
+            for (var j = 0; j < length; j++)
             {
                 buffer[j + bufferoffset] = value[(int)fieldoffset + j];
             }
@@ -157,12 +144,12 @@ namespace Trino.Ado.Client
 
         public override string GetDataTypeName(int i)
         {
-            return records.GetColumn(i).type;
+            return records.GetColumn(i).Type;
         }
 
         public override DateTime GetDateTime(int i)
         {
-            if (records.GetColumn(i).type.EndsWith(TrinoTypeConverters.TRINO_WITH_TIME_ZONE_SUFFIX)) {
+            if (records.GetColumn(i).Type.EndsWith(TrinoTypeConverters.TRINO_WITH_TIME_ZONE_SUFFIX)) {
                 return records.GetValue<DateTimeOffset>(i, TrinoTypeConverters.TRINO_TIMESTAMP_WITH_TIME_ZONE, false).DateTime;
             }
             else {
@@ -177,12 +164,12 @@ namespace Trino.Ado.Client
 
         public override decimal GetDecimal(int i)
         {
-            if (records.GetColumn(i).type.StartsWith("decimal"))
+            if (records.GetColumn(i).Type.StartsWith("decimal"))
             {
                 // because Trino provides a big decimal, we must be absolutely sure it is a big decimal
-                return records.GetValue<TrinoBigDecimal>(i, new string[] { "decimal", "bigdecimal" }, false).ToDecimal();
+                return records.GetValue<TrinoBigDecimal>(i, ["decimal", "bigdecimal"], false).ToDecimal();
             }
-            return records.GetValue<decimal>(i, new string[] { "integer", TrinoTypeConverters.TRINO_BIGINT, "smallint" }, false);
+            return records.GetValue<decimal>(i, ["integer", TrinoTypeConverters.TRINO_BIGINT, "smallint"], false);
         }
 
         public override double GetDouble(int i)
@@ -217,24 +204,24 @@ namespace Trino.Ado.Client
 
         public override int GetInt32(int i)
         {
-            return records.GetValue<int>(i, new string[] { "integer", "smallint" }, false);
+            return records.GetValue<int>(i, ["integer", "smallint"], false);
         }
 
         public override long GetInt64(int i)
         {
-            return records.GetValue<long>(i, new string[] { TrinoTypeConverters.TRINO_BIGINT, "integer", "smallint" }, false);
+            return records.GetValue<long>(i, [TrinoTypeConverters.TRINO_BIGINT, "integer", "smallint"], false);
         }
 
         public override string GetName(int i)
         {
-            return records.GetColumn(i).name;
+            return records.GetColumn(i).Name;
         }
 
         public override int GetOrdinal(string name)
         {
-            for (int i = 0; i < records.Columns.Count; i++)
+            for (var i = 0; i < records.Columns.Count; i++)
             {
-                if (records.Columns[i].name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                if (records.Columns[i].Name.Equals(name, StringComparison.OrdinalIgnoreCase))
                 {
                     return i;
                 }
@@ -247,7 +234,7 @@ namespace Trino.Ado.Client
         /// </summary>
         public override DataTable GetSchemaTable()
         {
-            DataTable schemaTable = new DataTable();
+            var schemaTable = new DataTable();
             schemaTable.Columns.Add(SchemaTableColumn.ColumnName, typeof(string));
             schemaTable.Columns.Add(SchemaTableColumn.ColumnOrdinal, typeof(int));
             schemaTable.Columns.Add(SchemaTableColumn.DataType, typeof(Type));
@@ -255,22 +242,22 @@ namespace Trino.Ado.Client
             schemaTable.Columns.Add(SchemaTableColumn.NumericPrecision, typeof(int));
             schemaTable.Columns.Add(SchemaTableColumn.NumericScale, typeof(int));
 
-            for (int i = 0; i < records.Columns.Count;i++)
+            for (var i = 0; i < records.Columns.Count;i++)
             {
-                TrinoColumn col = records.Columns[i];
-                int precision = -1;
-                int scale = -1;
-                TrinoTypeConverters.GetNestedTypes(col.type, out string baseType, out string typeParameters);
+                var col = records.Columns[i];
+                var precision = -1;
+                var scale = -1;
+                TrinoTypeConverters.GetNestedTypes(col.Type, out var baseType, out var typeParameters);
                 if (!string.IsNullOrEmpty(typeParameters) && baseType.Equals(TrinoTypeConverters.TRINO_DECIMAL, StringComparison.OrdinalIgnoreCase))
                 {
-                    string[] types = typeParameters.Split(',');
+                    var types = typeParameters.Split(',');
                     if (types.Length == 2)
                     {
                         int.TryParse(types[0].Trim(), out precision);
                         int.TryParse(types[1].Trim(), out scale);
                     }
                 }
-                schemaTable.Rows.Add(new object[] { col.name, i, col.GetColumnType(), baseType, precision, scale });
+                schemaTable.Rows.Add(new object[] { col.Name, i, col.GetColumnType(), baseType, precision, scale });
 
             }
             return schemaTable;
@@ -298,7 +285,7 @@ namespace Trino.Ado.Client
                 throw new ArgumentNullException("Array to populate is null.");
             }
 
-            for (int i = 0; values != null && i < values.Length && i < records.Columns.Count; i++)
+            for (var i = 0; values != null && i < values.Length && i < records.Columns.Count; i++)
             {
                 values[i] = records.GetValue<object>(i);
             }

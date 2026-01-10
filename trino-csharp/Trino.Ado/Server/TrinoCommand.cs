@@ -152,8 +152,8 @@ namespace Trino.Ado.Server
         public override int ExecuteNonQuery()
         {
             var result = RunNonQuery().SafeResult();
-            var stats = result.Records.ReadToEnd().SafeResult().stats;
-            return (int)stats.processedRows;
+            var stats = result.Records.ReadToEnd().SafeResult().Stats;
+            return (int)stats.ProcessedRows;
         }
 
         /// <summary>
@@ -189,7 +189,7 @@ namespace Trino.Ado.Server
         /// </summary>
         /// <param name="bufferSizeBytes">Optional buffer size in bytes. Defaults to system-defined value.</param>
         /// <returns>A task representing the asynchronous operation that returns a RecordExecutor.</returns>
-        public async Task<RecordExecutor> RunQuery(long bufferSizeBytes = Constants.DefaultBufferSizeBytes)
+        public async Task<RecordExecutor> RunQuery(long bufferSizeBytes = Constants.DEFAULT_BUFFER_SIZE_BYTES)
         {
             return await RecordExecutor.Execute(
                 logger: Logger,
@@ -261,7 +261,7 @@ namespace Trino.Ado.Server
                 session: connection.ConnectionSession,
                 statement: CommandText,
                 queryParameters: ConvertParameters(Parameters),
-                bufferSize: Constants.DefaultBufferSizeBytes,
+                bufferSize: Constants.DEFAULT_BUFFER_SIZE_BYTES,
                 isQuery: false,
                 cancellationToken: CancellationToken.Token).ConfigureAwait(false);
         }

@@ -34,7 +34,7 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Allow host name CN mismatch.
         /// </summary>
-        public bool AllowHostNameCNMismatch { get; set; }
+        public bool AllowHostNameCnMismatch { get; set; }
 
         /// <summary>
         /// Allow self signed certificate.
@@ -100,7 +100,7 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Host port for Trino.
         /// </summary>
-        public int Port { get; set; } = ClientSessionProperties.DefaultPort;
+        public int Port { get; set; } = ClientSessionProperties.DEFAULT_PORT;
 
         /// <summary>
         /// Set the default SQL path for the session. Useful for setting a catalog and schema location for catalog routines.
@@ -130,7 +130,7 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Source name for the Trino query.
         /// </summary>
-        public string Source { get; set; } = Constants.TrinoClientName;
+        public string Source { get; set; } = Constants.TRINO_CLIENT_NAME;
 
         /// <summary>
         /// The trace token to be associated with the client connection.
@@ -141,17 +141,14 @@ namespace Trino.Ado.Server
         /// Get Trino cluster Uri.
         /// </summary>
         public Uri Server {
-            get
-            {
-                return ClientSessionProperties.GetServerUri(this.Host, this.EnableSsl, this.Port, this.HostPath);
-            }
+            get => ClientSessionProperties.GetServerUri(Host, EnableSsl, Port, HostPath);
             set
             {
                 // decompose into parts
-                this.Host = value.Host;
-                this.Port = value.Port;
-                this.HostPath = value.AbsolutePath;
-                this.EnableSsl = value.Scheme == Uri.UriSchemeHttps;
+                Host = value.Host;
+                Port = value.Port;
+                HostPath = value.AbsolutePath;
+                EnableSsl = value.Scheme == Uri.UriSchemeHttps;
             }
         }
 
@@ -197,32 +194,32 @@ namespace Trino.Ado.Server
 
         public ClientSession GetSession()
         {
-            ClientSessionProperties properties = new ClientSessionProperties()
+            var properties = new ClientSessionProperties()
             {
-                Catalog = this.Catalog,
-                Schema = this.Schema,
-                Path = this.Path,
-                TimeZone = this.TimeZone,
-                ClientInfo = this.ClientInfo,
-                ClientTags = this.ClientTags == null ? new HashSet<string>() : new HashSet<string>(this.ClientTags),
-                CompressionDisabled = this.CompressionDisabled,
+                Catalog = Catalog,
+                Schema = Schema,
+                Path = Path,
+                TimeZone = TimeZone,
+                ClientInfo = ClientInfo,
+                ClientTags = ClientTags == null ? [] : [..ClientTags],
+                CompressionDisabled = CompressionDisabled,
                 // deep copy properties dictionary
-                Properties = this.SessionProperties == null ? new Dictionary<string, string>() : this.SessionProperties.ToDictionary(entry => entry.Key, entry => entry.Value),
-                Roles = this.Roles == null ? new Dictionary<string, ClientSelectedRole>() : this.Roles.ToDictionary(entry => entry.Key, entry => entry.Value),
-                Source = this.Source,
-                Server = this.Server,
-                ClientRequestTimeout = this.Timeout,
-                TestConnection = this.TestConnection,
-                TraceToken = this.TraceToken,
-                User = this.User,
-                AdditionalHeaders = this.AdditionalHeaders == null ? new Dictionary<string, string>() : this.AdditionalHeaders.ToDictionary(entry => entry.Key, entry => entry.Value),
-                AllowHostNameCNMismatch = this.AllowHostNameCNMismatch,
-                AllowSelfSignedServerCert = this.AllowSelfSignedServerCert,
-                TrustedCertPath = this.TrustedCertPath,
-                UseSystemTrustStore = this.UseSystemTrustStore,
-                ServerType = this.ServerType
+                Properties = SessionProperties == null ? new Dictionary<string, string>() : SessionProperties.ToDictionary(entry => entry.Key, entry => entry.Value),
+                Roles = Roles == null ? new Dictionary<string, ClientSelectedRole>() : Roles.ToDictionary(entry => entry.Key, entry => entry.Value),
+                Source = Source,
+                Server = Server,
+                ClientRequestTimeout = Timeout,
+                TestConnection = TestConnection,
+                TraceToken = TraceToken,
+                User = User,
+                AdditionalHeaders = AdditionalHeaders == null ? new Dictionary<string, string>() : AdditionalHeaders.ToDictionary(entry => entry.Key, entry => entry.Value),
+                AllowHostNameCnMismatch = AllowHostNameCnMismatch,
+                AllowSelfSignedServerCert = AllowSelfSignedServerCert,
+                TrustedCertPath = TrustedCertPath,
+                UseSystemTrustStore = UseSystemTrustStore,
+                ServerType = ServerType
             };
-            return new ClientSession(properties, this.Auth);
+            return new ClientSession(properties, Auth);
         }
     }
 }

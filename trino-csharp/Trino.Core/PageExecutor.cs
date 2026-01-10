@@ -7,35 +7,35 @@ using Trino.Core.Logging;
 using Trino.Core.Model;
 using Trino.Core.Model.StatementV1;
 
-namespace Trino.Core
+namespace Trino.Core;
+
+/// <summary>
+/// Asynchronous streaming query executor SDK for Trino.
+/// </summary>
+internal class PageExecutor : IEnumerable<QueryResultPage>
 {
     /// <summary>
-    /// Asynchronous streaming query executor SDK for Trino.
+    /// Get the source of pages.
     /// </summary>
-    internal class PageExecutor : IEnumerable<QueryResultPage>
+    public Pages Pages { get; private set; }
+
+    public PageExecutor(Pages enumerator)
     {
-        /// <summary>
-        /// Get the source of pages.
-        /// </summary>
-        public Pages Pages { get; private set; }
+        Pages = enumerator;
+    }
 
-        public PageExecutor(Pages enumerator)
-        {
-            this.Pages = enumerator;
-        }
+    public async static Task<PageExecutor> Execute(
+        ClientSession session,
+        string statement) 
+    {
+        return await Execute(null, null, session, statement, null, int.MaxValue, true, CancellationToken.None).ConfigureAwait(false);
+    }
 
-        public async static Task<PageExecutor> Execute(
-            ClientSession session,
-            string statement) 
-        {
-            return await Execute(null, null, session, statement, null, int.MaxValue, true, CancellationToken.None).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Factory method for enumerable.
-        /// .NET standard 2.0 does not have IAsyncEnumerable, so we use this method to create an enumerable.
-        /// </summary>
-        public async static Task<PageExecutor> Execute(
+    /// <summary>
+    /// Factory method for enumerable.
+    /// .NET standard 2.0 does not have IAsyncEnumerable, so we use this method to create an enumerable.
+    /// </summary>
+    public async static Task<PageExecutor> Execute(
         ILoggerWrapper logger,
         IList<Action<TrinoStats, TrinoError>> queryStatusNotifications,
         ClientSession session,
@@ -44,28 +44,27 @@ namespace Trino.Core
         long bufferSize,
         bool isQuery,
         CancellationToken cancellationToken)
-        {
-            session.Auth?.AuthorizeAndValidate();
+    {
+        session.Auth?.AuthorizeAndValidate();
 
-            StatementClientV1 client = new StatementClientV1(session, cancellationToken, logger);
-            logger?.LogInformation("Trino: Created client, starting query: {0}", statement);
-            await client.GetInitialResponse(statement, queryParameters, cancellationToken).ConfigureAwait(false);
+        var client = new StatementClientV1(session, cancellationToken, logger);
+        logger?.LogInformation("Trino: Created client, starting query: {0}", statement);
+        await client.GetInitialResponse(statement, queryParameters, cancellationToken).ConfigureAwait(false);
 
-            PageQueue pageQueue = new PageQueue(logger, queryStatusNotifications, client, bufferSize, isQuery);
-            pageQueue.StartReadAhead();
+        var pageQueue = new PageQueue(logger, queryStatusNotifications, client, bufferSize, isQuery);
+        pageQueue.StartReadAhead();
 
-            Pages enumerator = new Pages(logger, pageQueue);
-            return new PageExecutor(enumerator);
-        }
+        var enumerator = new Pages(logger, pageQueue);
+        return new PageExecutor(enumerator);
+    }
 
-        public IEnumerator<QueryResultPage> GetEnumerator()
-        {
-            return Pages;
-        }
+    public IEnumerator<QueryResultPage> GetEnumerator()
+    {
+        return Pages;
+    }
 
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
     }
 }
