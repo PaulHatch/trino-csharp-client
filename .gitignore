@@ -25,6 +25,7 @@ bld/
 _ReSharper*/
 *.[Rr]e[Ss]harper
 *.DotSettings.user
+.idea/
 
 # NuGet
 *.nupkg
