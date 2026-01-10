@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="Trino.Core/Trino.Core.csproj" />
+  <Project Path="Trino.Core.Auth/Trino.Core.Auth.csproj" />
+  <Project Path="Trino.Core.Samples/Trino.Core.Samples.csproj" />
+  <Project Path="Trino.Core.Test/Trino.Core.Test.csproj" />
+  <Project Path="Trino.Ado/Trino.Ado.csproj" />
+</Solution>
