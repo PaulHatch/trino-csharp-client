@@ -6,7 +6,12 @@
     <Version>$([System.DateTime]::Now.ToString("yyyy")).$([System.DateTime]::Now.ToString("MM")).$([System.DateTime]::Now.ToString("dd")).1</Version>
     <Title>Trino Client Authentication</Title>
     <SignAssembly>True</SignAssembly>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.11.4" />
