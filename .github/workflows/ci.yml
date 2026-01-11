@@ -77,13 +77,13 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore trino-csharp/TrinoDriver.sln
+        run: dotnet restore trino-csharp/TrinoDriver.slnx
 
       - name: Build
-        run: dotnet build trino-csharp/TrinoDriver.sln -c Release --no-restore -p:Version=${{ steps.format_version.outputs.assembly_version }}
+        run: dotnet build trino-csharp/TrinoDriver.slnx -c Release --no-restore -p:Version=${{ steps.format_version.outputs.assembly_version }}
 
       - name: Test
-        run: dotnet test trino-csharp/TrinoDriver.sln -c Release --no-build --verbosity normal
+        run: dotnet test trino-csharp/TrinoDriver.slnx -c Release --no-build --verbosity normal
 
       - name: Create NuGet Packages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -93,14 +93,14 @@ jobs:
           PREVIEW_VERSION: ${{ steps.format_version.outputs.preview_version }}
         run: |
           echo "Building release packages with version: $RELEASE_VERSION (assembly: $ASSEMBLY_VERSION)"
-          dotnet pack trino-csharp/Trino.Client/Trino.Client.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$RELEASE_VERSION --no-build --output ./artifacts/release
-          dotnet pack trino-csharp/Trino.Client.Auth/Trino.Client.Auth.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$RELEASE_VERSION --no-build --output ./artifacts/release
-          dotnet pack trino-csharp/Trino.Data.ADO/Trino.Data.ADO.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$RELEASE_VERSION --no-build --output ./artifacts/release
+          dotnet pack trino-csharp/Trino.Core/Trino.Core.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$RELEASE_VERSION --no-build --output ./artifacts/release
+          dotnet pack trino-csharp/Trino.Core.Auth/Trino.Core.Auth.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$RELEASE_VERSION --no-build --output ./artifacts/release
+          dotnet pack trino-csharp/Trino.Ado/Trino.Ado.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$RELEASE_VERSION --no-build --output ./artifacts/release
 
           echo "Building preview packages with version: $PREVIEW_VERSION (assembly: $ASSEMBLY_VERSION)"
-          dotnet pack trino-csharp/Trino.Client/Trino.Client.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$PREVIEW_VERSION --no-build --output ./artifacts/preview
-          dotnet pack trino-csharp/Trino.Client.Auth/Trino.Client.Auth.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$PREVIEW_VERSION --no-build --output ./artifacts/preview
-          dotnet pack trino-csharp/Trino.Data.ADO/Trino.Data.ADO.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$PREVIEW_VERSION --no-build --output ./artifacts/preview
+          dotnet pack trino-csharp/Trino.Core/Trino.Core.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$PREVIEW_VERSION --no-build --output ./artifacts/preview
+          dotnet pack trino-csharp/Trino.Core.Auth/Trino.Core.Auth.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$PREVIEW_VERSION --no-build --output ./artifacts/preview
+          dotnet pack trino-csharp/Trino.Ado/Trino.Ado.csproj -c Release -p:Version=$ASSEMBLY_VERSION -p:PackageVersion=$PREVIEW_VERSION --no-build --output ./artifacts/preview
 
       - name: Upload Preview Artifacts
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -214,9 +214,9 @@ jobs:
             View commits since last release: [Changelog](https://github.com/${{ github.repository }}/compare/...v${{ needs.build.outputs.version }})
 
             ### NuGet Packages
-            - [Trino.Client](https://www.nuget.org/packages/Trino.Client/${{ needs.build.outputs.version }})
-            - [Trino.Client.Auth](https://www.nuget.org/packages/Trino.Client.Auth/${{ needs.build.outputs.version }})
-            - [Trino.Data.ADO](https://www.nuget.org/packages/Trino.Data.ADO/${{ needs.build.outputs.version }})
+            - [Trino.Core](https://www.nuget.org/packages/Trino.Core/${{ needs.build.outputs.version }})
+            - [Trino.Core.Auth](https://www.nuget.org/packages/Trino.Core.Auth/${{ needs.build.outputs.version }})
+            - [Trino.Ado](https://www.nuget.org/packages/Trino.Ado/${{ needs.build.outputs.version }})
           draft: false
           prerelease: false
           files: ./artifacts/*.nupkg
