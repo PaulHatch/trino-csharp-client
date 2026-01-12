@@ -1,8 +1,23 @@
 # Trino C# Client
 
+[![NuGet](https://img.shields.io/nuget/v/Trino.Core.svg)](https://www.nuget.org/packages/Trino.Core/)
+[![NuGet](https://img.shields.io/nuget/v/Trino.Ado.svg)](https://www.nuget.org/packages/Trino.Ado/)
+[![NuGet](https://img.shields.io/nuget/v/Trino.Core.Auth.svg)](https://www.nuget.org/packages/Trino.Core.Auth/)
+
+## Fork Information
+
+This is a fork of the original official Trino C# client, which has not been updated in 11 months as of this writing. This fork includes:
+- Merged all outstanding PRs from the original repo where the CLA had been signed by the contributor (to facilitate any future merge back to the source)
+- Replaced Newtonsoft.Json with System.Text.Json
+- Modernized C# syntax, using C# 14 features where appropriate
+- Added .NET 8 support, which improves perfromance of System.Text.Json when available and adds AsyncEnumerable support (.NET Standard 2.0 is still supported)
+- Some minor bug fixes
+- Is published to NuGet, as the original repo is not. Note that the package names have been changed as the original were too similar to other released packages to be allowed by NuGet.
+
+
 ## Introduction
 
-A streaming C# Trino client library with ADO.NET interfaces. The priorties for this library are:
+A streaming C# Trino client library with ADO.NET interfaces. The priorities for this library are:
 
 * Response performance (fast return of rows for both short and long running queries).
 * Type support in .NET (with complex types, date time precision) and System.Data types.
@@ -10,7 +25,7 @@ A streaming C# Trino client library with ADO.NET interfaces. The priorties for t
 * Full ADO.NET implementation.
 * Streaming with read-ahead into customizable buffer size to allow for no-wait client paging.
 * Session support, parameterized query support.
-* No dependencies outside of .NET core except Newtonsoft.Json and Microsoft.Extensions.Logging. Authentication in separate library.
+* No dependencies outside of .NET core except System.Text.Json and Microsoft.Extensions.Logging. Authentication in separate library.
 * Alignment with Trino Java client, similar class structure.
 
 ## Resources
@@ -27,12 +42,12 @@ These are the libraries that make up the client:
 
 |Library|Description|Compatibility|Notes|
 |-|-|-|-|
-|Trino.Client|Trino .NET SDK|.NET Standard 2.0|Core client library providing direct access to Trino protocols. Handles session management, query execution, and result streaming.|
-|Trino.Data.ADO|Trino ADO.NET client|.NET Standard 2.0|ADO.NET wrapper implementing DbConnection, DbCommand, and IDataReader. Provides familiar database access patterns and schema discovery functionality.|
-|Trino.Client.Auth|Authentication providers|.NET Standard 2.0|Suthentication implementations in a separate package to avoid dependency conflicts.|
+|Trino.Core|Trino .NET SDK|.NET Standard 2.0, .NET 8|Core client library providing direct access to Trino protocols. Handles session management, query execution, and result streaming.|
+|Trino.Ado|Trino ADO.NET client|.NET Standard 2.0, .NET 8|ADO.NET wrapper implementing DbConnection, DbCommand, and IDataReader. Provides familiar database access patterns and schema discovery functionality.|
+|Trino.Core.Auth|Authentication providers|.NET Standard 2.0, .NET 8|Authentication implementations in a separate package to avoid dependency conflicts.|
 
 > [!NOTE]
-> .NET standard 2.0 provides compatibility with .NET Framework 4.7.2 which is widely used.
+> .NET Standard 2.0 provides compatibility with .NET Framework 4.7.2. .NET 8 is also supported.
 > Design note: IAsyncEnumerable is not available in .NET Standard 2.0 but due to asynchronous read-ahead you do not need to await reading every row.
 
 ## Building
@@ -40,19 +55,11 @@ These are the libraries that make up the client:
 ### Command Line
 
 1. Install .NET SDK latest version from <https://dotnet.microsoft.com/en-us/download>
-2. From the root folder of the project, run `msbuild TrinoDriver.sln`
-
-To make the nuget packages:
-
-```cmd
-nuget pack Trino.Client\Trino.Client.nuspec -Version 1.0.0
-nuget pack Trino.Data.ADO\Trino.Data.ADO.nuspec -Version 1.0.0
-nuget pack Trino.Client.Auth\Trino.Client.Auth.nuspec -Version 1.0.0
-```
+2. From the root folder of the project, run `dotnet build`
 
 ### Visual Studio
 
-In Visual Studio, open TrinoDriver.sln and build.
+In Visual Studio, open TrinoDriver.slnx and build.
 
 ### Visual Studio Code
 
