@@ -130,7 +130,8 @@ internal class StatementClientV1 : AbstractClient<Statement>
             // Allow self-signed certificates
             if (session.Properties.AllowSelfSignedServerCert
                 && sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors
-                && x509Chain?.ChainStatus is [{Status: X509ChainStatusFlags.UntrustedRoot} _])
+                && x509Chain?.ChainStatus?.Length == 1
+                && x509Chain.ChainStatus[0].Status == X509ChainStatusFlags.UntrustedRoot)
             {
                 return true;
             }
