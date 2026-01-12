@@ -30,7 +30,7 @@ public static class DataTableUtils
     /// Constructs a data table prepopulated with schema asynchronously.
     /// </summary>
     /// <exception cref="TrinoException"></exception>
-    public async static Task<DataTable> BuildDataTableAsync(this RecordExecutor recordExecutor)
+    public static async Task<DataTable> BuildDataTableAsync(this RecordExecutor recordExecutor)
     {
         var records = recordExecutor.Records;
         await records.PopulateColumnsAsync().ConfigureAwait(false);

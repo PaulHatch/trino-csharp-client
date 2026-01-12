@@ -2,9 +2,7 @@
 //#define TEST_OUTPUT
 
 using Trino.Core.Utils;
-
 using System.Text.Json;
-
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -30,13 +28,15 @@ namespace Trino.Core;
 internal class StatementClientV1 : AbstractClient<Statement>
 {
     // Initialize values for client response delay
-    // Java client has 100ms initial delay, but 50ms provides noticably better performance in testing.
+    // Java client has 100ms initial delay, but 50ms provides noticeably better performance in testing.
     private double readDelay = _initialPageReadDelayMsec;
-    private int readCount = 0;
-    private static readonly int _initialPageReadDelayMsec = (int)TimeSpan.FromMilliseconds(50).TotalMilliseconds;
-    private static readonly int _maxReadDelayMsec = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
+    private int readCount;
+    private static readonly int _initialPageReadDelayMsec = (int) TimeSpan.FromMilliseconds(50).TotalMilliseconds;
+
+    private static readonly int _maxReadDelayMsec = (int) TimeSpan.FromSeconds(5).TotalMilliseconds;
+
     // Java client does 100ms backoff but this affects query performance especially for metadata and cache operations.
-    // This backoff produces less calls than the Java client.
+    // This backoff produces fewer calls than the Java client.
     private static readonly double _backoffAmount = 1.2;
 
     private static readonly HashSet<HttpStatusCode> _ok = [HttpStatusCode.OK];
@@ -53,13 +53,14 @@ internal class StatementClientV1 : AbstractClient<Statement>
     private const string _clientCapabilities = "PARAMETRIC_DATETIME";
 
     // Timeout properties
-    private readonly Stopwatch stopwatch = new Stopwatch();
+    private readonly Stopwatch stopwatch = new();
 
     /// <summary>
     /// Last statement v1 response. Used to get stats and status from the server.
     /// </summary>
     private Statement Statement { get; set; } = null!;
-    private readonly ClientSessionOutput sessionSet = new ClientSessionOutput();
+
+    private readonly ClientSessionOutput sessionSet = new();
 
     /// <summary>
     /// The current executing state of the query.
@@ -83,7 +84,10 @@ internal class StatementClientV1 : AbstractClient<Statement>
         stopwatch.Start();
         State = new QueryState();
 
-        var handler = Session.Properties.CompressionDisabled ? new HttpClientHandler() : new HttpClientHandler() { AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate };
+        var handler = Session.Properties.CompressionDisabled
+            ? new HttpClientHandler()
+            : new HttpClientHandler()
+                {AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate};
 
 
         if (session.Properties.UseSystemTrustStore)
@@ -96,7 +100,9 @@ internal class StatementClientV1 : AbstractClient<Statement>
             {
                 try
                 {
-                    var cert = new X509Certificate2(session.Properties.TrustedCertPath);
+                    var cert = new X509Certificate2(session.Properties.TrustedCertPath
+                                                    ?? throw new InvalidOperationException(
+                                                        "TrustedCertPath is null or empty"));
                     handler.ClientCertificates.Add(cert);
                 }
                 catch (Exception ex)
@@ -104,7 +110,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
                     throw new InvalidOperationException("Failed to load trusted certificate.", ex);
                 }
             }
-            else if (session.Properties.TrustedCertificate is { Length: > 0 } trustedCert)
+            else if (session.Properties.TrustedCertificate is {Length: > 0} trustedCert)
             {
                 try
                 {
@@ -118,26 +124,28 @@ internal class StatementClientV1 : AbstractClient<Statement>
             }
         }
 
-        handler.ServerCertificateCustomValidationCallback = (httpRequestMessage, x509Certificate2, x509Chain, sslPolicyErrors) =>
-        {
-            // Allow CN mismatch
-            if (session.Properties.AllowHostNameCnMismatch
-                && sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
+        handler.ServerCertificateCustomValidationCallback =
+            (httpRequestMessage, x509Certificate2, x509Chain, sslPolicyErrors) =>
             {
-                return true;
-            }
+                // Allow CN mismatch
+                if (session.Properties.AllowHostNameCnMismatch
+                    && sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
+                {
+                    return true;
+                }
 
-            // Allow self-signed certificates
-            if (session.Properties.AllowSelfSignedServerCert
-                && sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors
-                && x509Chain?.ChainStatus is [{Status: X509ChainStatusFlags.UntrustedRoot} _])
-            {
-                return true;
-            }
+                // Allow self-signed certificates
+                if (session.Properties.AllowSelfSignedServerCert
+                    && sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors
+                    && x509Chain?.ChainStatus is {Length: 1} chainStatus
+                    && chainStatus[0].Status == X509ChainStatusFlags.UntrustedRoot)
+                {
+                    return true;
+                }
 
-            // Default validation is not to allow any policy errors.
-            return sslPolicyErrors == SslPolicyErrors.None;
-        };
+                // Default validation is not to allow any policy errors.
+                return sslPolicyErrors == SslPolicyErrors.None;
+            };
 
         HttpClient = new HttpClient(handler);
         HttpClient.Timeout = Constants.HttpConnectionTimeout;
@@ -173,13 +181,15 @@ internal class StatementClientV1 : AbstractClient<Statement>
     /// <summary>
     /// Get response from Trino server.
     /// </summary>
-    internal async Task<TrinoStats?> GetInitialResponse(string statement, IEnumerable<QueryParameter>? parameters, CancellationToken cancellationToken)
+    internal async Task<TrinoStats?> GetInitialResponse(string statement, IEnumerable<QueryParameter>? parameters,
+        CancellationToken cancellationToken)
     {
         string? responseContent = null;
         try
         {
             using var queryRequest = BuildInitialQueryRequest(statement, parameters);
-            Logger?.LogDebug("Trino: sending request at {1} msec: {0}", queryRequest.RequestUri?.ToString(), stopwatch.ElapsedMilliseconds);
+            Logger?.LogDebug("Trino: sending request at {1} msec: {0}", queryRequest.RequestUri?.ToString(),
+                stopwatch.ElapsedMilliseconds);
             responseContent = await GetResourceAsync(
                 HttpClient,
                 RetryableResponses,
@@ -190,8 +200,9 @@ internal class StatementClientV1 : AbstractClient<Statement>
 
             Logger?.LogDebug("Trino: got response content: {0}", responseContent);
             Statement = JsonSerializer.Deserialize<Statement>(responseContent, JsonSerializerConfig.Options)
-                ?? throw new TrinoException("Failed to deserialize initial response from Trino server");
-            Logger?.LogInformation("Query created queryId at {1} msec: {0}", Statement.ID, stopwatch.ElapsedMilliseconds);
+                        ?? throw new TrinoException("Failed to deserialize initial response from Trino server");
+            Logger?.LogInformation("Query created queryId at {1} msec: {0}", Statement.ID,
+                stopwatch.ElapsedMilliseconds);
             return Statement.Stats;
         }
         catch (Exception e)
@@ -214,6 +225,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
         {
             throw new TrinoException("Invalid server URL: " + Session.Properties.Server);
         }
+
         var request = new HttpRequestMessage(HttpMethod.Post, $"{Session.Properties.Server}v1/statement");
 
         // Handle parameterized queries on the server side by converting any parameterized query into a prepared statement.
@@ -223,9 +235,11 @@ internal class StatementClientV1 : AbstractClient<Statement>
             var parameterizedQueryId = ParameterizedQueryPrefix + Guid.NewGuid().ToString().Replace("-", "");
             additionalPreparedStatements.Add(parameterizedQueryId, query);
             Logger?.LogDebug("Trino: Converting parameterized query to prepared statement: {0}", query);
-            query = $"EXECUTE {parameterizedQueryId} USING {string.Join(", ", parameters.Select(p => p.SqlExpressionValue))}";
+            query =
+                $"EXECUTE {parameterizedQueryId} USING {string.Join(", ", parameters.Select(p => p.SqlExpressionValue))}";
             Logger?.LogDebug("Trino: Converted parameterized query to prepared statement: {0}", query);
         }
+
         AddHeadersToRequest(request, additionalPreparedStatements);
         request.Content = new StringContent(query);
         return request;
@@ -252,7 +266,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
             {
                 Logger?.LogInformation("Trino: Sending cancellation request queryId:{0}", Statement.ID);
                 using var request = new HttpRequestMessage(HttpMethod.Delete, Statement.NextUri);
-                // do not use cancellation token here as the query is already cancelled
+                // do not use cancellation token here as the query is already canceled
                 await GetResourceAsync(
                     HttpClient,
                     RetryableResponses,
@@ -261,12 +275,15 @@ internal class StatementClientV1 : AbstractClient<Statement>
                     _oKorNoContent,
                     CancellationToken.None).ConfigureAwait(false);
             }
+
             Logger?.LogInformation("Trino: Cancelled queryId:{0}", Statement.ID);
         }
         else
         {
-            Logger?.LogInformation("Trino: Could not cancel query, already cancelled queryId:{0}, state:{1}", Statement.ID, State.ToString());
+            Logger?.LogInformation("Trino: Could not cancel query, already cancelled queryId:{0}, state:{1}",
+                Statement.ID, State.ToString());
         }
+
         return State.IsClientAborted;
     }
 
@@ -278,7 +295,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
         try
         {
             var nextUri = Statement.NextUri
-                ?? throw new InvalidOperationException("Cannot advance: no next URI available");
+                          ?? throw new InvalidOperationException("Cannot advance: no next URI available");
 
             if (nextUri.Contains("/executing"))
             {
@@ -292,7 +309,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
             var responseStr = await GetAsync(new Uri(nextUri), _ok).ConfigureAwait(false);
             Logger?.LogDebug("Trino: response: {1}", responseStr);
             var response = JsonSerializer.Deserialize<QueryResultPage>(responseStr, JsonSerializerConfig.Options)
-                ?? throw new TrinoException("Failed to deserialize query result from Trino server");
+                           ?? throw new TrinoException("Failed to deserialize query result from Trino server");
             Logger?.LogDebug("Trino: response at {0} msec with state {1}", stopwatch.ElapsedMilliseconds,
                 response.Stats?.State);
 
@@ -328,7 +345,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
             {
                 Logger?.LogDebug("Trino: No data yet, backoff wait queryId:{0}, delay {1} msec", Statement.ID,
                     readDelay);
-                await Task.Delay((int)readDelay).ConfigureAwait(false);
+                await Task.Delay((int) readDelay).ConfigureAwait(false);
                 if (readDelay < _maxReadDelayMsec)
                 {
                     readDelay *= _backoffAmount;
@@ -380,13 +397,15 @@ internal class StatementClientV1 : AbstractClient<Statement>
 
         sessionSet.SetPath = headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetPath).FirstOrDefault();
 
-        var setAuthorizationUser = headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetAuthorizationUser).FirstOrDefault();
+        var setAuthorizationUser =
+            headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetAuthorizationUser).FirstOrDefault();
         if (setAuthorizationUser != null)
         {
             sessionSet.SetAuthorizationUser = setAuthorizationUser;
         }
 
-        var resetAuthorizationUser = headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetAuthorizationUser).FirstOrDefault();
+        var resetAuthorizationUser =
+            headers.GetValuesOrEmpty(ProtocolHeaders.ResponseSetAuthorizationUser).FirstOrDefault();
         if (setAuthorizationUser != null)
         {
             if (bool.TryParse(resetAuthorizationUser, out var resetAuthorizationUserBool))
@@ -402,6 +421,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
             {
                 continue;
             }
+
             sessionSet.SetSessionProperties.Add(keyValue[0], HttpUtility.UrlDecode(keyValue[1]));
         }
 
@@ -410,8 +430,10 @@ internal class StatementClientV1 : AbstractClient<Statement>
             var keyValue = preparedStatement.Split('=');
             if (keyValue.Length != 2)
             {
-                throw new TrinoException("Invalid response header. Expecting key=value: " + ProtocolHeaders.ResponseAddedPrepare + ": " + preparedStatement);
+                throw new TrinoException("Invalid response header. Expecting key=value: " +
+                                         ProtocolHeaders.ResponseAddedPrepare + ": " + preparedStatement);
             }
+
             var value = HttpUtility.UrlDecode(keyValue[1]);
             sessionSet.ResponseAddedPrepare.Add(keyValue[0], value);
         }
@@ -421,14 +443,17 @@ internal class StatementClientV1 : AbstractClient<Statement>
             var keyValue = deallocateStatement.Split('=');
             if (keyValue.Length != 2)
             {
-                throw new TrinoException("Invalid response header. Expecting key=value: " + ProtocolHeaders.ResponseDeallocatedPrepare + ": " + deallocateStatement);
+                throw new TrinoException("Invalid response header. Expecting key=value: " +
+                                         ProtocolHeaders.ResponseDeallocatedPrepare + ": " + deallocateStatement);
             }
+
             var value = HttpUtility.UrlDecode(keyValue[1]);
             sessionSet.ResponseDeallocatedPrepare.Add(keyValue[0], value);
         }
     }
 
-    private void AddHeadersToRequest(HttpRequestMessage request, Dictionary<string, string> additionalPreparedStatements)
+    private void AddHeadersToRequest(HttpRequestMessage request,
+        Dictionary<string, string> additionalPreparedStatements)
     {
         request.Headers.Add(ProtocolHeaders.RequestClientCapabilities, _clientCapabilities);
 
@@ -494,29 +519,34 @@ internal class StatementClientV1 : AbstractClient<Statement>
         var resourceEstimates = Session.Properties.ResourceEstimates;
         foreach (var pair in resourceEstimates)
         {
-            request.Headers.Add(ProtocolHeaders.RequestResourceEstimate, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
+            request.Headers.Add(ProtocolHeaders.RequestResourceEstimate,
+                $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
         }
 
         var roles = Session.Properties.Roles;
         foreach (var pair in roles)
         {
-            request.Headers.Add(ProtocolHeaders.RequestRole, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value.ToString())}");
+            request.Headers.Add(ProtocolHeaders.RequestRole,
+                $"{pair.Key}={HttpUtility.UrlEncode(pair.Value.ToString())}");
         }
 
         var extraCredentials = Session.Properties.ExtraCredentials;
         foreach (var pair in extraCredentials)
         {
-            request.Headers.Add(ProtocolHeaders.RequestExtraCredential, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
+            request.Headers.Add(ProtocolHeaders.RequestExtraCredential,
+                $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
         }
 
         foreach (var pair in Session.Properties.PreparedStatements)
         {
-            request.Headers.Add(ProtocolHeaders.RequestPreparedStatement, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
+            request.Headers.Add(ProtocolHeaders.RequestPreparedStatement,
+                $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
         }
 
         foreach (var pair in additionalPreparedStatements)
         {
-            request.Headers.Add(ProtocolHeaders.RequestPreparedStatement, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
+            request.Headers.Add(ProtocolHeaders.RequestPreparedStatement,
+                $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
         }
 
         if (!string.IsNullOrEmpty(Session.Properties.TransactionId))

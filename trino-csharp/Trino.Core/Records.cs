@@ -33,7 +33,7 @@ public class Records : IEnumerator<List<object>>,
     /// <summary>
     /// The index on the current page
     /// </summary>
-    private int rowIndex = 0;
+    private int rowIndex;
 
     /// <summary>
     /// Forces the reader to return only one row.

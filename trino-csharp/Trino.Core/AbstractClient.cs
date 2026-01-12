@@ -39,7 +39,7 @@ public abstract class AbstractClient<T>
     /// <summary>
     /// The URI of the Trino resource.
     /// </summary>
-    protected virtual internal Uri ResourceUri => new Uri($"{Session.Properties.Server}{ResourcePath}");
+    protected internal virtual Uri ResourceUri => new($"{Session.Properties.Server}{ResourcePath}");
 
     /// <summary>
     /// Performs HTTP request to Trino to fetch the requested resource and deserializes it to the specified type.
@@ -168,7 +168,7 @@ public abstract class AbstractClient<T>
     /// <summary>
     /// Adds headers that are common to all requests
     /// </summary>
-    protected static internal void AddHeaders(ProtocolHeaders protocolHeaders, HttpRequestMessage request, ClientSession session)
+    protected internal static void AddHeaders(ProtocolHeaders protocolHeaders, HttpRequestMessage request, ClientSession session)
     {
         session.Auth?.AddCredentialToRequest(request);
 

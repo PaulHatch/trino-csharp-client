@@ -79,7 +79,7 @@ namespace Trino.Ado.Server
         {
             connection.ConnectionSession.Properties.Timeout = timeout;
             Connection = connection;
-            CommandText = statement;
+            commandText = statement;
             CancellationToken = cancellationToken ?? new CancellationTokenSource();
             Logger = logger;
             parameters = new TrinoParameterCollection();
@@ -121,9 +121,10 @@ namespace Trino.Ado.Server
         [AllowNull]
         public override string CommandText
         {
-            get => field ?? string.Empty;
-            set => field = value;
+            get => commandText ?? string.Empty;
+            set => commandText = value;
         }
+        private string? commandText;
 
         /// <summary>
         /// Gets or sets how the CommandText property is interpreted.

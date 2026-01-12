@@ -24,7 +24,7 @@ internal class PageExecutor : IEnumerable<QueryResultPage>
         Pages = enumerator;
     }
 
-    public async static Task<PageExecutor> Execute(
+    public static async Task<PageExecutor> Execute(
         ClientSession session,
         string statement) 
     {
@@ -35,7 +35,7 @@ internal class PageExecutor : IEnumerable<QueryResultPage>
     /// Factory method for enumerable.
     /// .NET standard 2.0 does not have IAsyncEnumerable, so we use this method to create an enumerable.
     /// </summary>
-    public async static Task<PageExecutor> Execute(
+    public static async Task<PageExecutor> Execute(
         ILoggerWrapper? logger,
         IList<Action<TrinoStats?, TrinoError?>>? queryStatusNotifications,
         ClientSession session,

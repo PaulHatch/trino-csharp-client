@@ -20,7 +20,7 @@ namespace Trino.Ado.Client
     {
         public override int Depth => 1;
         public override bool IsClosed => isClosed;
-        private bool isClosed = false;
+        private bool isClosed;
         private readonly Records records;
 
         public override int RecordsAffected

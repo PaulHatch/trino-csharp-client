@@ -9,7 +9,7 @@ internal class TrinoTestServer : IDisposable
     private readonly HttpListener listener = new();
     private readonly ManualResetEventSlim listenerReady = new(false);
     private Task? serverTask;
-    private bool cancelled = false;
+    private bool cancelled;
 
     private TrinoTestServer()
     {
@@ -120,6 +120,7 @@ internal class TrinoTestServer : IDisposable
     /// Runs local webserver to respond with Trino HTTP responses.
     /// </summary>
     /// <param name="responses"></param>
+    /// <param name="waitBetweenResponses"></param>
     private void QueueUpResponses(List<TestStep> responses, TimeSpan waitBetweenResponses)
     {
         Console.WriteLine("Starting test server on port " + Port);
@@ -150,11 +151,11 @@ internal class TrinoTestServer : IDisposable
                 var buffer = new byte[contentLength];
                 request.InputStream.Read(buffer, 0, (int)contentLength);
                 var requestContent = System.Text.Encoding.UTF8.GetString(buffer);
-                Console.WriteLine($"Request recieved with body: {requestContent}");
+                Console.WriteLine($"Request received with body: {requestContent}");
             }
             else
             {
-                Console.WriteLine("Request recieved.");
+                Console.WriteLine("Request received.");
             }
             // Obtain a response object.
             using var httpListenerResponse = contextTask.Result.Response;

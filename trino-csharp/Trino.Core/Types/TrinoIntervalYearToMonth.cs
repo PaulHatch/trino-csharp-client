@@ -5,8 +5,8 @@
 /// </summary>
 public class TrinoIntervalYearToMonth
 {
-    public int Year { get; private set; }
-    public int Month { get; private set; }
+    public int Year { get; }
+    public int Month { get; }
 
     public TrinoIntervalYearToMonth(int year, int month)
     {

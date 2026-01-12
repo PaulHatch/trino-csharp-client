@@ -16,7 +16,7 @@ internal class PageQueue
 {
     private readonly StatementClientV1 client;
     // BlockingCollection offers no advantage over ConcurrentQueue for this use case.
-    private readonly ConcurrentQueue<ResponseQueueStatement> responseQueue = new ConcurrentQueue<ResponseQueueStatement>();
+    private readonly ConcurrentQueue<ResponseQueueStatement> responseQueue = new();
     private readonly ConcurrentBag<Exception> errors = [];
 
     // The actual buffer size
@@ -24,11 +24,11 @@ internal class PageQueue
     private readonly CancellationToken cancellationToken;
     private readonly ILoggerWrapper? logger;
     private readonly IList<Action<TrinoStats?, TrinoError?>>? queryStatusNotifications;
-    private readonly SemaphoreSlim signalUpdatedQueue = new SemaphoreSlim(0, int.MaxValue);
-    private readonly SemaphoreSlim signalFoundResult = new SemaphoreSlim(0, 1);
-    private readonly SemaphoreSlim signalColumnsRead = new SemaphoreSlim(0, 1);
+    private readonly SemaphoreSlim signalUpdatedQueue = new(0, int.MaxValue);
+    private readonly SemaphoreSlim signalFoundResult = new(0, 1);
+    private readonly SemaphoreSlim signalColumnsRead = new(0, 1);
 
-    private readonly object readAheadLock = new object();
+    private readonly object readAheadLock = new();
 
     // backoff for checking the queue for new pages, values tuned 2024
     private const int _maxWaitForQueueTimeoutMsec = 10000;

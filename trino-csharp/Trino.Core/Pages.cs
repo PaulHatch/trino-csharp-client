@@ -24,7 +24,7 @@ internal class Pages : IEnumerator<QueryResultPage>,
     private readonly PageQueue pageQueue;
     private readonly ILoggerWrapper? logger;
 
-    private readonly SemaphoreSlim allowOneThreadToReadPages = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim allowOneThreadToReadPages = new(1, 1);
 
     /// <summary>
     /// The current page of data (if any).
