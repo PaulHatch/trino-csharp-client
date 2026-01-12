@@ -120,7 +120,7 @@ namespace Trino.Ado.Server
         /// Gets or sets the SQL statement or stored procedure to execute.
         /// </summary>
         [AllowNull]
-        public override string CommandText
+        public sealed override string CommandText
         {
             get => field ?? string.Empty;
             set => field = value;
