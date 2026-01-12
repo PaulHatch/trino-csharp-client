@@ -58,7 +58,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
     /// <summary>
     /// Last statement v1 response. Used to get stats and status from the server.
     /// </summary>
-    private Statement Statement { get; set; }
+    private Statement Statement { get; set; } = null!;
     private readonly ClientSessionOutput sessionSet = new ClientSessionOutput();
 
     /// <summary>
@@ -67,8 +67,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
     internal QueryState State { get; private set; }
 
     public bool IsTimeout =>
-        Session.Properties.Timeout.HasValue
-        && Session.Properties.Timeout.Value.Ticks > 0
+        Session.Properties.Timeout is {Ticks: > 0}
         && stopwatch.ElapsedTicks > Session.Properties.Timeout.Value.Ticks;
 
     protected override string ResourcePath => throw new NotImplementedException();
@@ -79,7 +78,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
     internal StatementClientV1(
         ClientSession session,
         CancellationToken cancellationToken,
-        ILoggerWrapper logger = null) : base(session, logger, cancellationToken)
+        ILoggerWrapper? logger = null) : base(session, logger, cancellationToken)
     {
         stopwatch.Start();
         State = new QueryState();
@@ -105,11 +104,11 @@ internal class StatementClientV1 : AbstractClient<Statement>
                     throw new InvalidOperationException("Failed to load trusted certificate.", ex);
                 }
             }
-            else if (!string.IsNullOrEmpty(session.Properties.TrustedCertificate))
+            else if (session.Properties.TrustedCertificate is { Length: > 0 } trustedCert)
             {
                 try
                 {
-                    var cert = ConvertPemToX509Certificate(session.Properties.TrustedCertificate);
+                    var cert = ConvertPemToX509Certificate(trustedCert);
                     handler.ClientCertificates.Add(cert);
                 }
                 catch (Exception ex)
@@ -131,8 +130,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
             // Allow self-signed certificates
             if (session.Properties.AllowSelfSignedServerCert
                 && sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors
-                && x509Chain.ChainStatus.Length == 1
-                && x509Chain.ChainStatus[0].Status == X509ChainStatusFlags.UntrustedRoot)
+                && x509Chain?.ChainStatus is [{Status: X509ChainStatusFlags.UntrustedRoot} _])
             {
                 return true;
             }
@@ -175,27 +173,26 @@ internal class StatementClientV1 : AbstractClient<Statement>
     /// <summary>
     /// Get response from Trino server.
     /// </summary>
-    internal async Task<TrinoStats> GetInitialResponse(string statement, IEnumerable<QueryParameter> parameters, CancellationToken cancellationToken)
+    internal async Task<TrinoStats?> GetInitialResponse(string statement, IEnumerable<QueryParameter>? parameters, CancellationToken cancellationToken)
     {
-        string responseContent = null;
+        string? responseContent = null;
         try
         {
-            using (var queryRequest = BuildInitialQueryRequest(statement, parameters))
-            {
-                Logger?.LogDebug("Trino: sending request at {1} msec: {0}", queryRequest.RequestUri.ToString(), stopwatch.ElapsedMilliseconds);
-                responseContent = await GetResourceAsync(
-                    HttpClient,
-                    RetryableResponses,
-                    Session,
-                    queryRequest,
-                    _ok,
-                    cancellationToken).ConfigureAwait(false);
+            using var queryRequest = BuildInitialQueryRequest(statement, parameters);
+            Logger?.LogDebug("Trino: sending request at {1} msec: {0}", queryRequest.RequestUri?.ToString(), stopwatch.ElapsedMilliseconds);
+            responseContent = await GetResourceAsync(
+                HttpClient,
+                RetryableResponses,
+                Session,
+                queryRequest,
+                _ok,
+                cancellationToken).ConfigureAwait(false);
 
-                Logger?.LogDebug("Trino: got response content: {0}", responseContent);
-                Statement = JsonSerializer.Deserialize<Statement>(responseContent, JsonSerializerConfig.Options);
-                Logger?.LogInformation("Query created queryId at {1} msec: {0}", Statement?.ID, stopwatch.ElapsedMilliseconds);
-                return Statement.Stats;
-            }
+            Logger?.LogDebug("Trino: got response content: {0}", responseContent);
+            Statement = JsonSerializer.Deserialize<Statement>(responseContent, JsonSerializerConfig.Options)
+                ?? throw new TrinoException("Failed to deserialize initial response from Trino server");
+            Logger?.LogInformation("Query created queryId at {1} msec: {0}", Statement.ID, stopwatch.ElapsedMilliseconds);
+            return Statement.Stats;
         }
         catch (Exception e)
         {
@@ -211,7 +208,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
     /// <summary>
     /// Build POST request to start query.
     /// </summary>
-    private HttpRequestMessage BuildInitialQueryRequest(string query, IEnumerable<QueryParameter> parameters)
+    private HttpRequestMessage BuildInitialQueryRequest(string query, IEnumerable<QueryParameter>? parameters)
     {
         if (Session.Properties.Server == null)
         {
@@ -247,15 +244,16 @@ internal class StatementClientV1 : AbstractClient<Statement>
     /// </summary>
     private async Task<bool> Cancel(QueryCancellationReason reason)
     {
-        Logger?.LogInformation("Cancelling due to {0} queryId:{1}", reason.ToString(), Statement?.ID);
+        Logger?.LogInformation("Cancelling due to {0} queryId:{1}", reason.ToString(), Statement.ID);
         // Sets client aborted state and terminates query.
         if (State.StateTransition(TrinoQueryStates.CLIENT_ABORTED, TrinoQueryStates.RUNNING))
         {
-            Logger?.LogInformation("Trino: Sending cancellation request queryId:{0}", Statement?.ID);
-            using (var request = new HttpRequestMessage(HttpMethod.Delete, Statement.NextUri))
+            if (Statement.NextUri != null)
             {
+                Logger?.LogInformation("Trino: Sending cancellation request queryId:{0}", Statement.ID);
+                using var request = new HttpRequestMessage(HttpMethod.Delete, Statement.NextUri);
                 // do not use cancellation token here as the query is already cancelled
-                var cancellationResponse = await GetResourceAsync(
+                await GetResourceAsync(
                     HttpClient,
                     RetryableResponses,
                     Session,
@@ -263,11 +261,11 @@ internal class StatementClientV1 : AbstractClient<Statement>
                     _oKorNoContent,
                     CancellationToken.None).ConfigureAwait(false);
             }
-            Logger?.LogInformation("Trino: Cancelled", Statement?.ID);
+            Logger?.LogInformation("Trino: Cancelled queryId:{0}", Statement.ID);
         }
         else
         {
-            Logger?.LogInformation("Trino: Could not cancel query, already cancelled queryId:{0}, state:{1}", Statement?.ID, State.ToString());
+            Logger?.LogInformation("Trino: Could not cancel query, already cancelled queryId:{0}, state:{1}", Statement.ID, State.ToString());
         }
         return State.IsClientAborted;
     }
@@ -279,32 +277,31 @@ internal class StatementClientV1 : AbstractClient<Statement>
     {
         try
         {
-            if (Statement.NextUri.Contains("/executing"))
+            var nextUri = Statement.NextUri
+                ?? throw new InvalidOperationException("Cannot advance: no next URI available");
+
+            if (nextUri.Contains("/executing"))
             {
-                if (Statement.NextUri.Contains("?"))
-                {
-                    Statement.NextUri += $"&targetResultSize={Constants.MAX_TARGET_RESULT_SIZE_MB}MB";
-                }
-                else
-                {
-                    Statement.NextUri += $"?targetResultSize={Constants.MAX_TARGET_RESULT_SIZE_MB}MB";
-                }
+                nextUri += nextUri.Contains("?")
+                    ? $"&targetResultSize={Constants.MAX_TARGET_RESULT_SIZE_MB}MB"
+                    : $"?targetResultSize={Constants.MAX_TARGET_RESULT_SIZE_MB}MB";
             }
 
-            Logger?.LogDebug("Trino: request: {1}", Statement.NextUri);
+            Logger?.LogDebug("Trino: request: {0}", nextUri);
 
-            var responseStr = await GetAsync(new Uri(Statement.NextUri), _ok).ConfigureAwait(false);
+            var responseStr = await GetAsync(new Uri(nextUri), _ok).ConfigureAwait(false);
             Logger?.LogDebug("Trino: response: {1}", responseStr);
-            var response = JsonSerializer.Deserialize<QueryResultPage>(responseStr, JsonSerializerConfig.Options);
+            var response = JsonSerializer.Deserialize<QueryResultPage>(responseStr, JsonSerializerConfig.Options)
+                ?? throw new TrinoException("Failed to deserialize query result from Trino server");
             Logger?.LogDebug("Trino: response at {0} msec with state {1}", stopwatch.ElapsedMilliseconds,
-                response.Stats.State);
+                response.Stats?.State);
 
             // Note, the size is estimated based on the response string size which is not the actual deserialized size.
             var responseQueueItem = new ResponseQueueStatement(response, responseStr.Length);
             if (responseQueueItem.Response.Error != null)
             {
                 State.StateTransition(TrinoQueryStates.CLIENT_ERROR, TrinoQueryStates.RUNNING);
-                throw new TrinoException(responseQueueItem.Response.Error.Message,
+                throw new TrinoException(responseQueueItem.Response.Error.Message ?? "Unknown error from Trino server",
                     responseQueueItem.Response.Error);
             }
 
@@ -318,18 +315,18 @@ internal class StatementClientV1 : AbstractClient<Statement>
             }
             else if (IsTimeout)
             {
+                var timeout = Session.Properties.Timeout.GetValueOrDefault();
                 Logger?.LogInformation("Trino: Query timed out queryId:{0}, run time: {1} s, timeout {2} s.",
-                    Statement?.ID, stopwatch.Elapsed.TotalSeconds,
-                    Session.Properties.ClientRequestTimeout?.TotalSeconds);
+                    Statement.ID, stopwatch.Elapsed.TotalSeconds, timeout.TotalSeconds);
                 await Cancel(QueryCancellationReason.TIMEOUT).ConfigureAwait(false);
                 throw new TimeoutException(
-                    $"Trino query ran for {stopwatch.Elapsed.TotalSeconds} s, exceeding the timeout of {Session.Properties.Timeout.Value.TotalSeconds} s.");
+                    $"Trino query ran for {stopwatch.Elapsed.TotalSeconds} s, exceeding the timeout of {timeout.TotalSeconds} s.");
             }
 
             // Do not wait if the query had data - the next page may be ready immediately.
             if (!responseQueueItem.Response.HasData && !State.IsFinished && readCount > 4)
             {
-                Logger?.LogDebug("Trino: No data yet, backoff wait queryId:{0}, delay {1} msec", Statement?.ID,
+                Logger?.LogDebug("Trino: No data yet, backoff wait queryId:{0}, delay {1} msec", Statement.ID,
                     readDelay);
                 await Task.Delay((int)readDelay).ConfigureAwait(false);
                 if (readDelay < _maxReadDelayMsec)
@@ -361,7 +358,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
         stopwatch.Stop();
         Session.Update(sessionSet);
         State.StateTransition(TrinoQueryStates.FINISHED, TrinoQueryStates.RUNNING);
-        Logger?.LogInformation("Trino: Query finished queryId:{0}", Statement?.ID);
+        Logger?.LogInformation("Trino: Query finished queryId:{0}", Statement.ID);
     }
 
     /// <summary>
@@ -517,15 +514,12 @@ internal class StatementClientV1 : AbstractClient<Statement>
             request.Headers.Add(ProtocolHeaders.RequestPreparedStatement, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
         }
 
-        if (additionalPreparedStatements != null)
+        foreach (var pair in additionalPreparedStatements)
         {
-            foreach (var pair in additionalPreparedStatements)
-            {
-                request.Headers.Add(ProtocolHeaders.RequestPreparedStatement, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
-            }
+            request.Headers.Add(ProtocolHeaders.RequestPreparedStatement, $"{pair.Key}={HttpUtility.UrlEncode(pair.Value)}");
         }
 
-        if (string.IsNullOrEmpty(Session.Properties.TransactionId))
+        if (!string.IsNullOrEmpty(Session.Properties.TransactionId))
         {
             request.Headers.Add(ProtocolHeaders.RequestTransactionId, Session.Properties.TransactionId);
         }

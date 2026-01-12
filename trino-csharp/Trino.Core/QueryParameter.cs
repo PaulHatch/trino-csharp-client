@@ -9,7 +9,7 @@ namespace Trino.Core;
 /// </summary>
 public class QueryParameter
 {
-    public QueryParameter(object value)
+    public QueryParameter(object? value)
     {
         Value = value;
     }
@@ -17,7 +17,7 @@ public class QueryParameter
     /// <summary>
     /// The value of the parameter.
     /// </summary>
-    public object Value { get; set; }
+    public object? Value { get; set; }
 
     /// <summary>
     /// Get the string representation of the parameter value that can be used in a SQL expression.
@@ -30,16 +30,16 @@ public class QueryParameter
             {
                 case null:
                     return "NULL";
-                case string _:
-                    return $"'{Value.ToString().Replace("'", "''")}'";
+                case string s:
+                    return $"'{s.Replace("'", "''")}'";
                 case DateTime dateTime:
                     return $"timestamp '{dateTime:yyyy-MM-dd HH:mm:ss.fff}'";
                 case DateTimeOffset offset:
                     return $"\"timestamp with time zone\" '{offset:yyyy-MM-dd HH:mm:ss.fff zzz}'";
                 case TimeSpan span:
                     return $"'{span:c}'";
-                case Guid _:
-                    return $"'{Value}'";
+                case Guid guid:
+                    return $"'{guid}'";
                 case bool b:
                     return b ? "TRUE" : "FALSE";
                 case byte[] binary:
@@ -51,7 +51,7 @@ public class QueryParameter
                     return $"({string.Join(", ", items)})";
                 }
                 default:
-                    return Value.ToString();
+                    return Value.ToString() ?? "NULL";
             }
         }
     }

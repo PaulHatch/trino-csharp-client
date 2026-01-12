@@ -36,11 +36,11 @@ internal class PageExecutor : IEnumerable<QueryResultPage>
     /// .NET standard 2.0 does not have IAsyncEnumerable, so we use this method to create an enumerable.
     /// </summary>
     public async static Task<PageExecutor> Execute(
-        ILoggerWrapper logger,
-        IList<Action<TrinoStats, TrinoError>> queryStatusNotifications,
+        ILoggerWrapper? logger,
+        IList<Action<TrinoStats?, TrinoError?>>? queryStatusNotifications,
         ClientSession session,
         string statement,
-        IEnumerable<QueryParameter> queryParameters,
+        IEnumerable<QueryParameter>? queryParameters,
         long bufferSize,
         bool isQuery,
         CancellationToken cancellationToken)

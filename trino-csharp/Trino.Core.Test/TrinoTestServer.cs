@@ -157,7 +157,7 @@ internal class TrinoTestServer : IDisposable
                 Console.WriteLine("Request recieved.");
             }
             // Obtain a response object.
-            using (var httpListenerResponse = contextTask.Result.Response)
+            using var httpListenerResponse = contextTask.Result.Response;
             {
                 // Construct a response.
                 var buffer = System.Text.Encoding.UTF8.GetBytes(response.Payload);

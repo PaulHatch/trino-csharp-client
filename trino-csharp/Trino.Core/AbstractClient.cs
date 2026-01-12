@@ -19,7 +19,7 @@ public abstract class AbstractClient<T>
     protected abstract string ResourcePath { get; }
     protected internal HttpClient HttpClient;
     protected internal ClientSession Session { get; set; }
-    protected internal ILoggerWrapper Logger;
+    protected internal ILoggerWrapper? Logger;
     protected internal CancellationToken CancellationToken;
     protected internal ProtocolHeaders ProtocolHeaders;
 
@@ -27,7 +27,7 @@ public abstract class AbstractClient<T>
     protected internal HashSet<HttpStatusCode> RetryableResponses =
         [HttpStatusCode.BadGateway, HttpStatusCode.ServiceUnavailable, HttpStatusCode.GatewayTimeout];
 
-    protected AbstractClient(ClientSession session, ILoggerWrapper logger, CancellationToken cancellationToken)
+    protected AbstractClient(ClientSession session, ILoggerWrapper? logger, CancellationToken cancellationToken)
     {
         HttpClient = new HttpClient();
         Session = session;
@@ -44,7 +44,7 @@ public abstract class AbstractClient<T>
     /// <summary>
     /// Performs HTTP request to Trino to fetch the requested resource and deserializes it to the specified type.
     /// </summary>
-    public T Get()
+    public T? Get()
     {
         return GetAsync().SafeResult();
     }
@@ -52,7 +52,7 @@ public abstract class AbstractClient<T>
     /// <summary>
     /// Performs HTTP request to Trino to fetch the requested resource and deserializes it to the specified type.
     /// </summary>
-    protected internal async Task<T> GetAsync()
+    protected internal async Task<T?> GetAsync()
     {
         return await GetAsync(ResourceUri).ConfigureAwait(false);
     }
@@ -60,7 +60,7 @@ public abstract class AbstractClient<T>
     /// <summary>
     /// Performs HTTP request to Trino to fetch the requested resource and deserializes it to the specified type.
     /// </summary>
-    protected internal async Task<T> GetAsync(Uri uri)
+    protected internal async Task<T?> GetAsync(Uri uri)
     {
         var resourceContent = await GetAsync(uri, _defaultExpectedResponseCodes).ConfigureAwait(false);
         var deserializedResult = JsonSerializer.Deserialize<T>(resourceContent, JsonSerializerConfig.Options);
@@ -72,16 +72,14 @@ public abstract class AbstractClient<T>
     /// </summary>
     protected async Task<string> GetAsync(Uri uri, HashSet<HttpStatusCode> expectedResponses)
     {
-        using (var request = new HttpRequestMessage(HttpMethod.Get, uri))
-        {
-            return await GetResourceAsync(
-                HttpClient,
-                RetryableResponses,
-                Session,
-                request,
-                expectedResponses,
-                CancellationToken).ConfigureAwait(false);
-        }
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        return await GetResourceAsync(
+            HttpClient,
+            RetryableResponses,
+            Session,
+            request,
+            expectedResponses,
+            CancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -104,9 +102,8 @@ public abstract class AbstractClient<T>
             try
             {
                 HttpStatusCode statusCode;
-                using (var page = await httpClient.SendAsync(request, token).ConfigureAwait(false))
-                {
-                    responseContent = await page.Content.ReadAsStringAsync().ConfigureAwait(false);
+                using var page = await httpClient.SendAsync(request, token).ConfigureAwait(false);
+                responseContent = await page.Content.ReadAsStringAsync().ConfigureAwait(false);
 #if TEST_OUTPUT
                         // For UT generation, write the response to a file.
                         // First get the headers from the response and serialize them into k=v pairs
@@ -126,31 +123,31 @@ public abstract class AbstractClient<T>
                         File.AppendAllText(fileName, headers.ToString() + Environment.NewLine);
                         File.AppendAllText(fileName, responseStrWithUpdatedHost.Trim() + Environment.NewLine);
 #endif
-                    statusCode = page.StatusCode;
-                    if (retryableResponses.Contains(statusCode))
-                    {
-                        continue;
-                    }
-
-                    if (!expectedResponses.Contains(statusCode))
-                    {
-                        throw new TrinoException($"HTTP {(int)statusCode} ({statusCode}): {responseContent}");
-                    }
-
-                    ProcessResponseHeaders(page.Headers);
+                statusCode = page.StatusCode;
+                if (retryableResponses.Contains(statusCode))
+                {
+                    continue;
                 }
+
+                if (!expectedResponses.Contains(statusCode))
+                {
+                    throw new TrinoException($"HTTP {(int)statusCode} ({statusCode}): {responseContent}");
+                }
+
+                ProcessResponseHeaders(page.Headers);
 
                 return responseContent;
             }
-            catch (WebException ex)
+            catch (WebException ex) when (ex.Response != null)
             {
-                using (var stream = ex.Response.GetResponseStream())
-                using (var reader = new StreamReader(stream))
+                using var stream = ex.Response.GetResponseStream();
+                if (stream == null)
                 {
-                    string responseStr;
-                    responseStr = reader.ReadToEnd();
-                    throw new TrinoException(responseStr, ex);
+                    throw new TrinoException("Web request failed with no response stream", ex);
                 }
+                using var reader = new StreamReader(stream);
+                var responseStr = reader.ReadToEnd();
+                throw new TrinoException(responseStr, ex);
             }
             catch (Exception ex)
             {
@@ -158,10 +155,8 @@ public abstract class AbstractClient<T>
                 {
                     throw new TrinoException(responseContent, ex);
                 }
-                else
-                {
-                    throw ex;
-                }
+
+                throw;
             }
         }
     }

@@ -19,7 +19,7 @@ public class TrinoIntervalYearToMonth
         return $"{Year}-{Month}";
     }
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
     {
         if (obj is TrinoIntervalYearToMonth other)
         {

@@ -22,8 +22,8 @@ internal class PageQueue
     // The actual buffer size
     private readonly long bufferSize;
     private readonly CancellationToken cancellationToken;
-    private readonly ILoggerWrapper logger;
-    private readonly IList<Action<TrinoStats, TrinoError>> queryStatusNotifications;
+    private readonly ILoggerWrapper? logger;
+    private readonly IList<Action<TrinoStats?, TrinoError?>>? queryStatusNotifications;
     private readonly SemaphoreSlim signalUpdatedQueue = new SemaphoreSlim(0, int.MaxValue);
     private readonly SemaphoreSlim signalFoundResult = new SemaphoreSlim(0, 1);
     private readonly SemaphoreSlim signalColumnsRead = new SemaphoreSlim(0, 1);
@@ -34,9 +34,9 @@ internal class PageQueue
     private const int _maxWaitForQueueTimeoutMsec = 10000;
     private const int _queueCheckBackoff = 100;
     private int waitForQueueTimeoutMsec = 50;
-    private Task readAhead;
+    private Task? readAhead;
 
-    internal PageQueue(ILoggerWrapper logger, IList<Action<TrinoStats, TrinoError>> queryStatusNotifications, StatementClientV1 client, long bufferSize, bool isQuery, CancellationToken cancellationToken = default)
+    internal PageQueue(ILoggerWrapper? logger, IList<Action<TrinoStats?, TrinoError?>>? queryStatusNotifications, StatementClientV1 client, long bufferSize, bool isQuery, CancellationToken cancellationToken = default)
     {
         if (bufferSize == 0)
         {
@@ -59,18 +59,18 @@ internal class PageQueue
     /// <summary>
     /// The schema columns.
     /// </summary>
-    internal IList<TrinoColumn> Columns { get; private set; }
+    internal IList<TrinoColumn>? Columns { get; private set; }
     internal bool IsEmpty => responseQueue.Count == 0;
 
     /// <summary>
     /// The last response from the statement endpoint.
     /// </summary>
-    internal Statement LastStatement { get; private set; }
+    internal Statement? LastStatement { get; private set; }
 
     /// <summary>
     /// True if the last page has been reached.
     /// </summary>
-    internal bool IsLastPage => LastStatement != null && LastStatement.IsLastPage;
+    internal bool IsLastPage => LastStatement is {IsLastPage: true};
 
     /// <summary>
     /// The client state.
@@ -161,7 +161,7 @@ internal class PageQueue
     /// </summary>
     private bool ShouldStopReading()
     {
-        if (cancellationToken != null && cancellationToken.IsCancellationRequested)
+        if (cancellationToken.IsCancellationRequested)
         {
             logger?.LogDebug("Trino Query Executor: query cancelled.");
             errors.Add(new OperationCanceledException("Query cancelled"));
@@ -190,7 +190,7 @@ internal class PageQueue
     /// </summary>
     private bool ShouldReadAheadToNextPage()
     {
-        if (!IsLastPage && !client.State.IsClientAborted && !client.State.IsClientError)
+        if (!IsLastPage && client.State is {IsClientAborted: false, IsClientError: false})
         {
             if (IsQuery)
             {
@@ -215,7 +215,7 @@ internal class PageQueue
     /// <summary>
     /// Fetches list of columns for the result set.
     /// </summary>
-    internal async Task<IList<TrinoColumn>> GetColumns()
+    internal async Task<IList<TrinoColumn>?> GetColumns()
     {
         if (Columns == null)
         {
@@ -244,7 +244,7 @@ internal class PageQueue
     /// Attempt to dequeue the next available page. Poses an exponential backoff if result is not found.
     /// </summary>
     /// <returns>The next page, or null, if not available</returns>
-    internal async Task<ResponseQueueStatement> DequeueOrNull()
+    internal async Task<ResponseQueueStatement?> DequeueOrNull()
     {
         if (!responseQueue.TryDequeue(out var response))
         {
@@ -292,7 +292,7 @@ internal class PageQueue
     /// <summary>
     /// Publishes a notification if the query fails and when the query finishes.
     /// </summary>
-    private void PublishStatus(TrinoStats stats, TrinoError error)
+    private void PublishStatus(TrinoStats? stats, TrinoError? error)
     {
         if (queryStatusNotifications != null)
         {

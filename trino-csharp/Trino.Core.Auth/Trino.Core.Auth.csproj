@@ -5,6 +5,7 @@
     <Description>Trino Client Authentication</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>

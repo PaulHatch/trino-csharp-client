@@ -45,7 +45,7 @@ public class NaNHandlingDoubleConverter : JsonConverter<double>
 /// </summary>
 public class ObjectToInferredTypeConverter : JsonConverter<object>
 {
-    public override object Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override object? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         switch (reader.TokenType)
         {
@@ -87,7 +87,7 @@ public class ObjectToInferredTypeConverter : JsonConverter<object>
 
 internal static class JsonSerializerConfig
 {
-    private static JsonSerializerOptions _options;
+    private static JsonSerializerOptions? _options;
 
     public static JsonSerializerOptions Options
     {

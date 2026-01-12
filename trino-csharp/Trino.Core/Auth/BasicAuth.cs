@@ -13,16 +13,9 @@ public class BasicAuth : ITrinoAuth
     {
     }
 
-    public string User
-    {
-        get;
-        set;
-    }
+    public string? User { get; set; }
 
-    public string Password { 
-        get; 
-        set; 
-    }
+    public string? Password { get; set; }
 
     public virtual void AuthorizeAndValidate()
     {
@@ -38,8 +31,8 @@ public class BasicAuth : ITrinoAuth
     /// <param name="httpRequestMessage">Http request message</param>
     public virtual void AddCredentialToRequest(HttpRequestMessage httpRequestMessage)
     {
-        var credentials = Convert.ToBase64String(string.IsNullOrEmpty(Password) ? 
-            Encoding.ASCII.GetBytes($"{User}") : 
+        var credentials = Convert.ToBase64String(string.IsNullOrEmpty(Password) ?
+            Encoding.ASCII.GetBytes($"{User}") :
             Encoding.ASCII.GetBytes($"{User}:{Password}"));
 
         httpRequestMessage.Headers.Add("Authorization", "Basic " + credentials);

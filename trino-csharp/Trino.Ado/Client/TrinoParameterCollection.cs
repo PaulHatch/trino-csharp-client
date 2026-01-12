@@ -66,7 +66,7 @@ namespace Trino.Ado.Client
 
         public override bool Contains(object value)
         {
-            return parameters.Contains(value as IDataParameter);
+            return value is IDataParameter param && parameters.Contains(param);
         }
 
         public override void CopyTo(Array array, int index)
@@ -141,12 +141,14 @@ namespace Trino.Ado.Client
 
         protected override DbParameter GetParameter(int index)
         {
-            return parameters[index] as DbParameter;
+            return parameters[index] as DbParameter
+                ?? throw new InvalidOperationException($"Parameter at index {index} is not a DbParameter");
         }
 
         protected override DbParameter GetParameter(string parameterName)
         {
-            return parameters.FirstOrDefault(p => string.Equals(p.ParameterName, parameterName, StringComparison.OrdinalIgnoreCase)) as DbParameter;
+            return parameters.FirstOrDefault(p => string.Equals(p.ParameterName, parameterName, StringComparison.OrdinalIgnoreCase)) as DbParameter
+                ?? throw new ArgumentException($"Parameter '{parameterName}' not found", nameof(parameterName));
         }
 
         protected override void SetParameter(int index, DbParameter value)

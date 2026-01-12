@@ -8,13 +8,13 @@ namespace Trino.Core;
 /// </summary>
 public class TrinoException : Exception
 {
-    public TrinoError Error { get; private set;}
+    public TrinoError? Error { get; private set;}
 
     /// <summary>
     /// Create a new Trino exception.
     /// </summary>
     /// <param name="message">Exception message</param>
-    public TrinoException(string message) : this(message, (TrinoError)null)
+    public TrinoException(string message) : this(message, (TrinoError?)null)
     {
     }
 
@@ -23,7 +23,7 @@ public class TrinoException : Exception
     /// </summary>
     /// <param name="message">Exception message</param>
     /// <param name="trinoError">Trino error</param>
-    public TrinoException(string message, TrinoError trinoError) : base(message)
+    public TrinoException(string message, TrinoError? trinoError) : base(message)
     {
         Error = trinoError;
     }
@@ -43,7 +43,7 @@ public class TrinoException : Exception
     /// <param name="message">Exception message</param>
     /// <param name="trinoError">Trino error</param>
     /// <param name="inner">Inner exception</param>
-    public TrinoException(string message, TrinoError trinoError, Exception inner) : base(message, inner)
+    public TrinoException(string message, TrinoError? trinoError, Exception inner) : base(message, inner)
     {
         Error = trinoError;
     }

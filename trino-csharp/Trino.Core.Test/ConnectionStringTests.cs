@@ -37,9 +37,9 @@ public class ConnectionStringTests
 
         var connection = new TrinoConnection();
         connection.ConnectionString = connectionString;
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Host, host);
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Port.ToString(), port);
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Scheme, scheme);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Host, host);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Port.ToString(), port);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Scheme, scheme);
         Assert.AreEqual(connection.ConnectionSession.Properties.User, user);
         Assert.AreEqual(connection.ConnectionSession.Properties.Source, source);
         Assert.AreEqual(connection.ConnectionSession.Properties.Catalog, catalog);
@@ -50,14 +50,19 @@ public class ConnectionStringTests
         Assert.AreEqual(connection.ConnectionSession.Properties.ClientInfo, clientinfo);
         CollectionAssert.AreEqual(connection.ConnectionSession.Properties.ClientTags.ToArray(), clienttags.Split(','));
         Assert.IsNotNull(connection.ConnectionSession.Properties.ClientRequestTimeout);
-        Assert.AreEqual((int)connection.ConnectionSession.Properties.ClientRequestTimeout.Value.TotalSeconds, int.Parse(clientrequesttimeout));
+        Assert.AreEqual((int) connection.ConnectionSession.Properties.ClientRequestTimeout.Value.TotalSeconds,
+            int.Parse(clientrequesttimeout));
         Assert.AreEqual(connection.ConnectionSession.Properties.CompressionDisabled, true);
         Assert.AreEqual(connection.ConnectionSession.Properties.TransactionId, transactionid);
         Assert.AreEqual(connection.ConnectionSession.Properties.TraceToken, tracetoken);
-        CollectionAssert.AreEqual(connection.ConnectionSession.Properties.ExtraCredentials, extracredentials.Split(',').Select(x => x.Split(':')).ToDictionary(x => x[0], x => x[1]));
-        CollectionAssert.AreEqual(connection.ConnectionSession.Properties.Properties, properties.Split(',').Select(x => x.Split(':')).ToDictionary(x => x[0], x => x[1]));
-        CollectionAssert.AreEqual(connection.ConnectionSession.Properties.ResourceEstimates, resourceestimates.Split(',').Select(x => x.Split(':')).ToDictionary(x => x[0], x => x[1]));
-        CollectionAssert.AreEqual(connection.ConnectionSession.Properties.PreparedStatements, preparedstatements.Split(',').Select(x => x.Split(':')).ToDictionary(x => x[0], x => x[1]));
+        CollectionAssert.AreEqual(connection.ConnectionSession.Properties.ExtraCredentials,
+            extracredentials.Split(',').Select(x => x.Split(':')).ToDictionary(x => x[0], x => x[1]));
+        CollectionAssert.AreEqual(connection.ConnectionSession.Properties.Properties,
+            properties.Split(',').Select(x => x.Split(':')).ToDictionary(x => x[0], x => x[1]));
+        CollectionAssert.AreEqual(connection.ConnectionSession.Properties.ResourceEstimates,
+            resourceestimates.Split(',').Select(x => x.Split(':')).ToDictionary(x => x[0], x => x[1]));
+        CollectionAssert.AreEqual(connection.ConnectionSession.Properties.PreparedStatements,
+            preparedstatements.Split(',').Select(x => x.Split(':')).ToDictionary(x => x[0], x => x[1]));
 
         // verify the connection string can be regenerated
         Assert.IsNotNull(connection.ConnectionString);
@@ -77,11 +82,12 @@ public class ConnectionStringTests
 
         var connection = new TrinoConnection();
         connection.ConnectionString = connectionString;
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Host, host);
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Port.ToString(), defaultPort);
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Scheme, scheme);
-        Assert.AreEqual(connection.ConnectionSession.Auth.GetType().Name, auth, StringComparer.InvariantCultureIgnoreCase);
-        Assert.AreEqual(((TrinoJwtAuth)connection.ConnectionSession.Auth).AccessToken, token);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Host, host);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Port.ToString(), defaultPort);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Scheme, scheme);
+        Assert.AreEqual(connection.ConnectionSession.Auth?.GetType().Name, auth,
+            StringComparer.InvariantCultureIgnoreCase);
+        Assert.AreEqual((connection.ConnectionSession.Auth as TrinoJwtAuth)?.AccessToken, token);
 
         // verify the connection string can be regenerated
         Assert.IsNotNull(connection.ConnectionString);
@@ -97,7 +103,8 @@ public class ConnectionStringTests
         const string scope = "54dfb96b-fb36-4b76-b65b-083ed2b0b058";
         const string defaultPort = "443";
         const string scheme = "https";
-        const string tokenEndpoint = "https://login.microsoftonline.com/0a1a60c6-7a15-43ae-ae41-aee8f3fe68fd/oauth2/v2.0/authorize";
+        const string tokenEndpoint =
+            "https://login.microsoftonline.com/0a1a60c6-7a15-43ae-ae41-aee8f3fe68fd/oauth2/v2.0/authorize";
 
         var connectionString =
             $"host={host};auth={auth};ClientId={clientid};ClientSecret={clientsecret};SCOpe={scope};tokenendpoint={tokenEndpoint}";
@@ -105,13 +112,14 @@ public class ConnectionStringTests
         var connection = new TrinoConnection();
         connection.AdditionalAuthProvidersForConnectionString = [typeof(TrinoOauthClientSecretAuth)];
         connection.ConnectionString = connectionString;
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Host, host);
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Port.ToString(), defaultPort);
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Scheme, scheme);
-        Assert.AreEqual(connection.ConnectionSession.Auth.GetType().Name, auth, StringComparer.InvariantCultureIgnoreCase);
-        Assert.AreEqual(((TrinoOauthClientSecretAuth)connection.ConnectionSession.Auth).ClientId, clientid);
-        Assert.AreEqual(((TrinoOauthClientSecretAuth)connection.ConnectionSession.Auth).TokenEndpoint, tokenEndpoint);
-        Assert.AreEqual(((TrinoOauthClientSecretAuth)connection.ConnectionSession.Auth).Scope, scope);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Host, host);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Port.ToString(), defaultPort);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Scheme, scheme);
+        Assert.AreEqual(connection.ConnectionSession.Auth?.GetType().Name, auth,
+            StringComparer.InvariantCultureIgnoreCase);
+        Assert.AreEqual((connection.ConnectionSession.Auth as TrinoOauthClientSecretAuth)?.ClientId, clientid);
+        Assert.AreEqual((connection.ConnectionSession.Auth as TrinoOauthClientSecretAuth)?.TokenEndpoint, tokenEndpoint);
+        Assert.AreEqual((connection.ConnectionSession.Auth as TrinoOauthClientSecretAuth)?.Scope, scope);
         // client secret is not exposed
 
         // verify the connection string can be regenerated
@@ -133,17 +141,18 @@ public class ConnectionStringTests
 
         var connection = new TrinoConnection();
         connection.ConnectionString = connectionString;
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Host, host);
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Port.ToString(), defaultPort);
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Scheme, scheme);
-        Assert.AreEqual(connection.ConnectionSession.Auth.GetType().Name, auth, StringComparer.InvariantCultureIgnoreCase);
-        Assert.AreEqual(((LdapAuth)connection.ConnectionSession.Auth).User, user);
-        Assert.AreEqual(((LdapAuth)connection.ConnectionSession.Auth).Password, password);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Host, host);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Port.ToString(), defaultPort);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Scheme, scheme);
+        Assert.AreEqual(connection.ConnectionSession.Auth?.GetType().Name, auth,
+            StringComparer.InvariantCultureIgnoreCase);
+        Assert.AreEqual((connection.ConnectionSession.Auth as LdapAuth)?.User, user);
+        Assert.AreEqual((connection.ConnectionSession.Auth as LdapAuth)?.Password, password);
 
         // verify the connection string can be regenerated
         Assert.IsNotNull(connection.ConnectionString);
     }
-        
+
     [TestMethod]
     public void BasicAuth()
     {
@@ -158,11 +167,12 @@ public class ConnectionStringTests
 
         var connection = new TrinoConnection();
         connection.ConnectionString = connectionString;
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Host, host);
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Port.ToString(), defaultPort);
-        Assert.AreEqual(connection.ConnectionSession.Properties.Server.Scheme, scheme);
-        Assert.AreEqual(connection.ConnectionSession.Auth.GetType().Name, auth, StringComparer.InvariantCultureIgnoreCase);
-        Assert.AreEqual(((BasicAuth)connection.ConnectionSession.Auth).User, user);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Host, host);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Port.ToString(), defaultPort);
+        Assert.AreEqual(connection.ConnectionSession.Properties.Server?.Scheme, scheme);
+        Assert.AreEqual(connection.ConnectionSession.Auth?.GetType().Name, auth,
+            StringComparer.InvariantCultureIgnoreCase);
+        Assert.AreEqual((connection.ConnectionSession.Auth as BasicAuth)?.User, user);
 
         // verify the connection string can be regenerated
         Assert.IsNotNull(connection.ConnectionString);

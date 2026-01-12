@@ -49,7 +49,7 @@ public class TrinoTypeConverters
 
     private static readonly string _trinoTimeFormat = "hh\\:mm\\:ss\\.fff";
 
-    internal static object ConvertToTrinoTypeFromJson(object value, string trinoType, string validType = null)
+    internal static object? ConvertToTrinoTypeFromJson(object? value, string? trinoType, string? validType = null)
     {
         if (value == null)
         {
@@ -66,7 +66,7 @@ public class TrinoTypeConverters
         return ConvertToTrinoTypeFromJson(value, trinoType, baseType, typeParameters);
     }
 
-    internal static object ConvertToTrinoTypeFromJson(object value, string trinoType, string[] validTypes)
+    internal static object? ConvertToTrinoTypeFromJson(object? value, string? trinoType, string[] validTypes)
     {
         if (value == null)
         {
@@ -83,7 +83,7 @@ public class TrinoTypeConverters
         return ConvertToTrinoTypeFromJson(value, trinoType, baseType, typeParameters);
     }
 
-    private static object ConvertToTrinoTypeFromJson(object value, string trinoType, string baseType, string typeParameters)
+    private static object? ConvertToTrinoTypeFromJson(object value, string? trinoType, string baseType, string? typeParameters)
     {
         switch (baseType.ToLower())
         {
@@ -105,11 +105,11 @@ public class TrinoTypeConverters
             case TRINO_REAL:
                 return Convert.ToSingle(value);
             case TRINO_DATE:
-                return DateTime.ParseExact(value.ToString(), _trinoDateFormat, null, System.Globalization.DateTimeStyles.None);
+                return DateTime.ParseExact(value.ToString()!, _trinoDateFormat, null, System.Globalization.DateTimeStyles.None);
             case TRINO_DECIMAL:
-                return new TrinoBigDecimal(value.ToString());
+                return new TrinoBigDecimal(value.ToString()!);
             case TRINO_CHAR:
-                var str = value.ToString();
+                var str = value.ToString()!;
                 if (str.Length > 0)
                 {
                     return str.ToCharArray();
@@ -118,15 +118,15 @@ public class TrinoTypeConverters
             case TRINO_VARCHAR:
                 return value.ToString();
             case TRINO_TIME:
-                return TimeSpan.ParseExact(value.ToString(), _trinoTimeFormat, null);
+                return TimeSpan.ParseExact(value.ToString()!, _trinoTimeFormat, null);
             case TRINO_TIME_WITH_TIME_ZONE:
                 // No time with time zone in C#
                 return value.ToString();
             case TRINO_TIMESTAMP:
-                return DateTime.Parse(value.ToString());
+                return DateTime.Parse(value.ToString()!);
             case TRINO_TIMESTAMP_WITH_TIME_ZONE:
                 // custom parsing to handle fractional seconds
-                var timestampParts = _trinoTimestampWithTimezoneFormat.Match(value.ToString());
+                var timestampParts = _trinoTimestampWithTimezoneFormat.Match(value.ToString()!);
                 if (!timestampParts.Success)
                 {
                     throw new TrinoException($"Could not parse timestamp with time zone: {value}");
@@ -165,31 +165,40 @@ public class TrinoTypeConverters
                 var dateTimeParsed = new DateTimeOffset(year, month, day, hour, minute, second, offset).AddTicks(fractionTicks);
                 return dateTimeParsed;
             case TRINO_INTERVAL_YEAR_TO_MONTH:
-                var separator = value.ToString().IndexOf('-');
-                var years = Convert.ToInt32(value.ToString().Substring(0, separator));
-                var months = Convert.ToInt32(value.ToString().Substring(separator + 1));
+                var intervalYm = value.ToString()!;
+                var separator = intervalYm.IndexOf('-');
+                var years = Convert.ToInt32(intervalYm.Substring(0, separator));
+                var months = Convert.ToInt32(intervalYm.Substring(separator + 1));
                 return new DateTime(years, months, 1);
             case TRINO_INTERVAL_DAY_TO_SECOND:
-                var dayToTimeSeparator = value.ToString().IndexOf(' ');
-                var days = Convert.ToInt32(value.ToString().Substring(0, dayToTimeSeparator));
-                var time = value.ToString().Substring(dayToTimeSeparator + 1);
+                var intervalDs = value.ToString()!;
+                var dayToTimeSeparator = intervalDs.IndexOf(' ');
+                var days = Convert.ToInt32(intervalDs.Substring(0, dayToTimeSeparator));
+                var time = intervalDs.Substring(dayToTimeSeparator + 1);
                 return TimeSpan.ParseExact(time, _trinoTimeFormat, null).Add(TimeSpan.FromDays(days));
             case TRINO_VARBINARY:
                 // convert base 64 string to byte array
-                return Convert.FromBase64String(value.ToString());
+                return Convert.FromBase64String(value.ToString()!);
             case TRINO_ARRAY:
                 return HandleComplexType(baseType, typeParameters, value);
             case TRINO_MAP:
                 return HandleComplexType(baseType, typeParameters, value);
             case TRINO_UUID:
-                return Guid.Parse(value.ToString());
+                return Guid.Parse(value.ToString()!);
             default:
                 return value.ToString();
         }
     }
 
-    public static void GetNestedTypes(string trinoType, out string baseType, out string typeParameters)
+    public static void GetNestedTypes(string? trinoType, out string baseType, out string? typeParameters)
     {
+        if (trinoType is not { Length: > 0 })
+        {
+            baseType = string.Empty;
+            typeParameters = null;
+            return;
+        }
+
         var typeParametersIndex = trinoType.IndexOf("(");
         var typeParametersIndexEnd = trinoType.LastIndexOf(")");
         baseType = typeParametersIndex != -1 && typeParametersIndexEnd != -1
@@ -297,7 +306,7 @@ public class TrinoTypeConverters
         }
     }
 
-    private static object HandleComplexType(string baseType, string typeParameters, object value)
+    private static object HandleComplexType(string baseType, string? typeParameters, object value)
     {
         if (baseType == TRINO_ARRAY)
         {
@@ -311,17 +320,15 @@ public class TrinoTypeConverters
             {
                 try
                 {
-                    using (var doc = JsonDocument.Parse(stringValue))
-                    {
-                        arrayElement = doc.RootElement.Clone();
-                    }
+                    using var doc = JsonDocument.Parse(stringValue);
+                    arrayElement = doc.RootElement.Clone();
                 }
                 catch (Exception ex)
                 {
                     throw new TrinoException("Failed to parse string as JSON array", ex);
                 }
             }
-            else if (value is JsonElement je && je.ValueKind == JsonValueKind.Array)
+            else if (value is JsonElement {ValueKind: JsonValueKind.Array} je)
             {
                 arrayElement = je;
             }
@@ -330,7 +337,7 @@ public class TrinoTypeConverters
                 throw new TrinoException("Array type expected to be JsonElement with Array kind");
             }
 
-            var list = new List<object>();
+            var list = new List<object?>();
             foreach (var item in arrayElement.EnumerateArray())
             {
                 list.Add(ConvertToTrinoTypeFromJson(GetJsonElementValue(item), typeParameters));
@@ -350,17 +357,15 @@ public class TrinoTypeConverters
             {
                 try
                 {
-                    using (var doc = JsonDocument.Parse(stringValue))
-                    {
-                        objectElement = doc.RootElement.Clone();
-                    }
+                    using var doc = JsonDocument.Parse(stringValue);
+                    objectElement = doc.RootElement.Clone();
                 }
                 catch (Exception ex)
                 {
                     throw new TrinoException("Failed to parse string as JSON object", ex);
                 }
             }
-            else if (value is JsonElement je && je.ValueKind == JsonValueKind.Object)
+            else if (value is JsonElement {ValueKind: JsonValueKind.Object} je)
             {
                 objectElement = je;
             }
@@ -369,13 +374,15 @@ public class TrinoTypeConverters
                 throw new TrinoException("Map type expected to be JsonElement with Object kind");
             }
 
-            var map = new Dictionary<object, object>();
+            var map = new Dictionary<object, object?>();
             var types = typeParameters.Split(',');
             var keyType = types[0].Trim();
             var valueType = types[1].Trim();
             foreach (var item in objectElement.EnumerateObject())
             {
-                map.Add(ConvertToTrinoTypeFromJson(item.Name, keyType), ConvertToTrinoTypeFromJson(GetJsonElementValue(item.Value), valueType));
+                var key = ConvertToTrinoTypeFromJson(item.Name, keyType)
+                    ?? throw new TrinoException("Map key cannot be null");
+                map.Add(key, ConvertToTrinoTypeFromJson(GetJsonElementValue(item.Value), valueType));
             }
 
             return map;
@@ -386,7 +393,7 @@ public class TrinoTypeConverters
         }
     }
 
-    private static object GetJsonElementValue(JsonElement element)
+    private static object? GetJsonElementValue(JsonElement element)
     {
         switch (element.ValueKind)
         {

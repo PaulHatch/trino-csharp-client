@@ -22,31 +22,31 @@ internal class Pages : IEnumerator<QueryResultPage>,
     IDisposable
 {
     private readonly PageQueue pageQueue;
-    private readonly ILoggerWrapper logger;
+    private readonly ILoggerWrapper? logger;
 
     private readonly SemaphoreSlim allowOneThreadToReadPages = new SemaphoreSlim(1, 1);
 
     /// <summary>
     /// The current page of data (if any).
     /// </summary>
-    public QueryResultPage Current { get; private set; }
+    public QueryResultPage Current { get; private set; } = null!;
 
     /// <summary>
     /// The executing state of the query containing status and stats.
     /// </summary>
-    public Statement LastStatement => pageQueue.LastStatement;
+    public Statement? LastStatement => pageQueue.LastStatement;
 
     /// <summary>
     /// The most recent stats for this query.
     /// </summary>
-    public TrinoStats LastStats => pageQueue.LastStatement.Stats;
+    public TrinoStats? LastStats => pageQueue.LastStatement?.Stats;
 
     /// <summary>
     /// Required for IEnumerator (same as Current).
     /// </summary>
     object IEnumerator.Current => Current;
 
-    public Pages(ILoggerWrapper logger, PageQueue pageQueue)
+    public Pages(ILoggerWrapper? logger, PageQueue pageQueue)
     {
         this.pageQueue = pageQueue;
         this.logger = logger;
@@ -60,7 +60,7 @@ internal class Pages : IEnumerator<QueryResultPage>,
     /// <summary>
     /// Wait for query to finish executing.
     /// </summary>
-    public async Task<Statement> ReadToEnd()
+    public async Task<Statement?> ReadToEnd()
     {
         logger?.LogDebug("Trino Query Executor: Waiting for finish queryid:{0}", LastStatement?.ID);
         while (await MoveNextAsync().ConfigureAwait(false)) ;
@@ -71,7 +71,7 @@ internal class Pages : IEnumerator<QueryResultPage>,
     /// Allows the caller to wait for the first page to be read.
     /// Can be used if client wants schema before reading.
     /// </summary>
-    internal async Task<IList<TrinoColumn>> WaitAndGetColumns()
+    internal async Task<IList<TrinoColumn>?> WaitAndGetColumns()
     {
         return await pageQueue.GetColumns().ConfigureAwait(false);
     }
@@ -109,7 +109,7 @@ internal class Pages : IEnumerator<QueryResultPage>,
 
             pageQueue.StartReadAhead();
 
-            ResponseQueueStatement response;
+            ResponseQueueStatement? response;
             while ((response = await pageQueue.DequeueOrNull().ConfigureAwait(false)) == null)
             {
                 pageQueue.ThrowIfErrors();
@@ -137,14 +137,14 @@ internal class Pages : IEnumerator<QueryResultPage>,
     /// <returns></returns>
     public bool IsFinished()
     {
-        if (!pageQueue.IsQuery && pageQueue.State.IsFinished)
+        if (pageQueue is {IsQuery: false, State.IsFinished: true})
         {
             // if a non-query, no pages will be generated, so as soon as execution finishes server side, query is done.
             return true;
         }
 
         return pageQueue.State.IsFinished && pageQueue.IsEmpty
-                                          && LastStatement.IsLastPage;
+                                          && (LastStatement?.IsLastPage ?? false);
     }
 
     /// <summary>

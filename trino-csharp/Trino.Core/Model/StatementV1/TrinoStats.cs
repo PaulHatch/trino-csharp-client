@@ -10,29 +10,17 @@ public class TrinoStats
     /// <summary>
     /// State of the query
     /// </summary>
-    public string State
-    {
-        get;
-        set;
-    }
+    public string? State { get; set; }
 
     /// <summary>
     /// True, if the query is queued
     /// </summary>
-    public bool Queued
-    {
-        get;
-        set;
-    }
+    public bool Queued { get; set; }
 
     /// <summary>
     /// True, if the query was scheduled
     /// </summary>
-    public bool Scheduled
-    {
-        get;
-        set;
-    }
+    public bool Scheduled { get; set; }
 
     public long Nodes { get; set; }
     public long TotalSplits { get; set; }

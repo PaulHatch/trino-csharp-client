@@ -21,16 +21,12 @@ internal class QueryResultPage : Statement
     /// <summary>
     /// Gets or sets the columns (schema definition) in the response.
     /// </summary>
-    public IList<TrinoColumn> Columns
-    {
-        get;
-        set;
-    }
+    public IList<TrinoColumn>? Columns { get; set; }
 
     /// <summary>
     /// Indicates whether this message contains data
     /// </summary>
-    public bool HasData => Data != null && Data.Count > 0;
+    public bool HasData => Data is {Count: > 0};
 
     /// <summary>
     /// Construct a string containing the data in this response
@@ -49,7 +45,7 @@ internal class QueryResultPage : Statement
     {
         var sv = new StringBuilder();
         var isNewRow = true;
-        if (includeColumnNames)
+        if (includeColumnNames && Columns != null)
         {
             foreach (var col in Columns)
             {

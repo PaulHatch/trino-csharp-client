@@ -10,30 +10,30 @@ public class TrinoErrorCause
     /// <summary>
     /// Trino error type
     /// </summary>
-    public string Type { get; set; }
+    public string? Type { get; set; }
 
     /// <summary>
     /// Trino error message
     /// </summary>
-    public string Message { get; set; }
+    public string? Message { get; set; }
 
     /// <summary>
     /// Location of the error in the query
     /// </summary>
-    public TrinoErrorLocation ErrorLocation { get; set; }
+    public TrinoErrorLocation? ErrorLocation { get; set; }
 
     /// <summary>
     /// Stack trace of the error
     /// </summary>
-    public List<string> Stack { get; set; }
+    public List<string>? Stack { get; set; }
 
     /// <summary>
     /// Suppressed errors
     /// </summary>
-    public List<TrinoErrorCause> Suppressed { get; set; }
+    public List<TrinoErrorCause>? Suppressed { get; set; }
 
     /// <summary>
     /// Cause of the error
     /// </summary>
-    public TrinoErrorCause Cause { get; set; }
+    public TrinoErrorCause? Cause { get; set; }
 }

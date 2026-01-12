@@ -22,7 +22,7 @@ public class ClientSelectedRole
         Role = role.IsNullArgument("role");
     }
 
-    public override bool Equals(Object o)
+    public override bool Equals(object? o)
     {
         if (this == o)
         {

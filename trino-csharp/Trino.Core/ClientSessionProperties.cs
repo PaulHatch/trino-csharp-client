@@ -12,40 +12,40 @@ public class ClientSessionProperties
     public const int DEFAULT_PORT = 443;
 
     // Server and Connection Settings
-    public Uri Server { get; set; }
-    public string Path { get; set; }
+    public Uri? Server { get; set; }
+    public string? Path { get; set; }
     public TimeSpan? ClientRequestTimeout { get; set; }
     public TimeSpan? Timeout { get; set; }
     public bool TestConnection { get; set; }
 
     // Authentication and Security
-    public string User { get; set; }
-    public string AuthorizationUser { get; set; }
-    public string Principal { get; set; }
+    public string? User { get; set; }
+    public string? AuthorizationUser { get; set; }
+    public string? Principal { get; set; }
     public Dictionary<string, string> ExtraCredentials { get; set; } = new Dictionary<string, string>();
     public Dictionary<string, ClientSelectedRole> Roles { get; set; } = new Dictionary<string, ClientSelectedRole>();
 
     // Database Settings
-    public string Catalog { get; set; }
-    public string Schema { get; set; }
-    public string TransactionId { get; set; }
+    public string? Catalog { get; set; }
+    public string? Schema { get; set; }
+    public string? TransactionId { get; set; }
 
     // Client Configuration
     public string Source { get; set; } = Constants.TRINO_CLIENT_NAME;
-    public string ClientInfo { get; set; }
+    public string? ClientInfo { get; set; }
     public HashSet<string> ClientTags { get; set; } = [];
-    public string TraceToken { get; set; }
+    public string? TraceToken { get; set; }
     public string ServerType { get; set; } = "Trino";
 
     // Session Properties
     public Dictionary<string, string> Properties { get; set; } = new Dictionary<string, string>();
     public Dictionary<string, string> PreparedStatements { get; set; } = new Dictionary<string, string>();
     public Dictionary<string, string> ResourceEstimates { get; set; } = new Dictionary<string, string>();
-    public Dictionary<string, string> AdditionalHeaders { get; set; }
+    public Dictionary<string, string>? AdditionalHeaders { get; set; }
 
     // Locale and Time Settings
-    public string Locale { get; set; }
-    public string TimeZone { get; set; }  // Cannot be TimeZoneInfo because it's not compatible with Java's java.time.ZoneId
+    public string? Locale { get; set; }
+    public string? TimeZone { get; set; }  // Cannot be TimeZoneInfo because it's not compatible with Java's java.time.ZoneId
 
     // Connection Behavior
     public bool CompressionDisabled { get; set; }
@@ -54,8 +54,8 @@ public class ClientSessionProperties
     public bool UseSystemTrustStore { get; set; }
 
     // Certificate Settings
-    public string TrustedCertPath { get; set; }
-    public string TrustedCertificate { get; set; }
+    public string? TrustedCertPath { get; set; }
+    public string? TrustedCertificate { get; set; }
 
     /// <summary>
     /// Creates a server URI from component pieces for easier server configuration.
@@ -65,7 +65,7 @@ public class ClientSessionProperties
     /// <param name="port">The server port number.</param>
     /// <param name="path">Optional path component for the URI.</param>
     /// <returns>A fully constructed server URI.</returns>
-    public static Uri GetServerUri(string host, bool enableSsl = true, int port = 443, string path = null)
+    public static Uri GetServerUri(string host, bool enableSsl = true, int port = 443, string? path = null)
     {
         var protocol = enableSsl ? "https" : "http";
         var serverUri = new Uri($"{protocol}://{host}:{port}");
@@ -122,7 +122,7 @@ public class ClientSessionProperties
     private static Dictionary<string, string> MergeDictionary(
         Dictionary<string, string> baseDict,
         Dictionary<string, string> additions,
-        Dictionary<string, string> removals = null)
+        Dictionary<string, string>? removals = null)
     {
         var result = new Dictionary<string, string>(baseDict);
 

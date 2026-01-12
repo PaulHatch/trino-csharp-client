@@ -22,7 +22,7 @@ public class QueryState
 
     public override string ToString()
     {
-        return Enum.GetName(typeof(TrinoQueryStates), state);
+        return Enum.GetName(typeof(TrinoQueryStates), state) ?? state.ToString();
     }
 
     /// <summary>
@@ -39,7 +39,7 @@ public class QueryState
     /// </summary>
     internal enum TrinoQueryStates
     {
-        // submitted to server, not in terminal state (including planning, queued, running, etc)
+        // submitted to server, not in terminal state (including planning, queued, running, etc.)
         RUNNING,
         CLIENT_ERROR,
         CLIENT_ABORTED,

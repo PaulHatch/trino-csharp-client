@@ -24,12 +24,12 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Any additional headers to be passed to the Trino cluster.
         /// </summary>
-        public Dictionary<string, string> AdditionalHeaders { get; set; }
+        public Dictionary<string, string>? AdditionalHeaders { get; set; }
 
         /// <summary>
         /// Authentication mode, null for no authentication.
         /// </summary>
-        public ITrinoAuth Auth { get; set; }
+        public ITrinoAuth? Auth { get; set; }
 
         /// <summary>
         /// Allow host name CN mismatch.
@@ -70,17 +70,17 @@ namespace Trino.Ado.Server
         /// <summary>
         /// The default catalog to use for unqualified table names in SQL statements.
         /// </summary>
-        public string Catalog { get; set; }
+        public string? Catalog { get; set; }
 
         /// <summary>
         /// Extra information about the client.
         /// </summary>
-        public string ClientInfo { get; set; }
+        public string? ClientInfo { get; set; }
 
         /// <summary>
         /// Tags to be associated with the client connection.
         /// </summary>
-        public HashSet<string> ClientTags { get; set; }
+        public HashSet<string>? ClientTags { get; set; }
 
         /// <summary>
         /// Whether compression should be enabled.
@@ -90,12 +90,12 @@ namespace Trino.Ado.Server
         /// <summary>
         /// The endpoint host name of the Trino server.
         /// </summary>
-        public string Host { get; set; }
+        public string? Host { get; set; }
 
         /// <summary>
         /// The host path of the Trino endpoint.
         /// </summary>
-        public string HostPath { get; set; }
+        public string? HostPath { get; set; }
 
         /// <summary>
         /// Host port for Trino.
@@ -105,7 +105,7 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Set the default SQL path for the session. Useful for setting a catalog and schema location for catalog routines.
         /// </summary>
-        public string Path { get; set; }
+        public string? Path { get; set; }
 
         /// <summary>
         /// Set true to specify using TLS/HTTPS for connections.
@@ -115,17 +115,17 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Authorization roles to use for catalogs.
         /// </summary>
-        public IDictionary<string, ClientSelectedRole> Roles { get; set; }
+        public IDictionary<string, ClientSelectedRole>? Roles { get; set; }
 
         /// <summary>
         /// The default schema to use for unqualified table names in SQL statements.
         /// </summary>
-        public string Schema { get; set; }
+        public string? Schema { get; set; }
 
         /// <summary>
         /// Properties to be associated with the client session.
         /// </summary>
-        public IDictionary<string, string> SessionProperties { get; set; }
+        public IDictionary<string, string>? SessionProperties { get; set; }
 
         /// <summary>
         /// Source name for the Trino query.
@@ -135,13 +135,13 @@ namespace Trino.Ado.Server
         /// <summary>
         /// The trace token to be associated with the client connection.
         /// </summary>
-        public string TraceToken { get; set; }
+        public string? TraceToken { get; set; }
 
         /// <summary>
         /// Get Trino cluster Uri.
         /// </summary>
         public Uri Server {
-            get => ClientSessionProperties.GetServerUri(Host, EnableSsl, Port, HostPath);
+            get => ClientSessionProperties.GetServerUri(Host ?? "localhost", EnableSsl, Port, HostPath);
             set
             {
                 // decompose into parts
@@ -155,12 +155,12 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Trusted certificate path.
         /// </summary>
-        public string TrustedCertPath { get; set; }
+        public string? TrustedCertPath { get; set; }
 
         /// <summary>
         /// Trusted certificate embeded string.
         /// </summary>
-        public string TrustedCertificate { get; set; }
+        public string? TrustedCertificate { get; set; }
 
         /// <summary>
         /// Use system trust store.
@@ -170,12 +170,12 @@ namespace Trino.Ado.Server
         /// <summary>
         /// The timezone for query processing. Defaults to the timezone of the Trino cluster, and not the timezone of the client.
         /// </summary>
-        public string TimeZone { get; set; }
+        public string? TimeZone { get; set; }
 
         /// <summary>
         /// Sets the username for Username and password authentication.
         /// </summary>
-        public string User { get; set; }
+        public string? User { get; set; }
 
         /// <summary>
         /// Allows test connection to be enabled. If false, any connection test will ignored, even if explicitly called.

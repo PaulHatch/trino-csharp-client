@@ -28,7 +28,7 @@ public class Records : IEnumerator<List<object>>,
     /// <summary>
     /// The current Trino page.
     /// </summary>
-    private QueryResultPage currentPage;
+    private QueryResultPage currentPage = null!;
 
     /// <summary>
     /// The index on the current page
@@ -39,11 +39,11 @@ public class Records : IEnumerator<List<object>>,
     /// Forces the reader to return only one row.
     /// </summary>
     private readonly bool forceLimitOne = false;
-    private readonly ILoggerWrapper logger;
+    private readonly ILoggerWrapper? logger;
     private bool isClosed;
-    private IList<TrinoColumn> columns;
+    private IList<TrinoColumn>? columns;
 
-    internal Records(ILoggerWrapper logger, Pages pages)
+    internal Records(ILoggerWrapper? logger, Pages pages)
     {
         this.logger = logger;
         this.pages = pages;
@@ -62,17 +62,14 @@ public class Records : IEnumerator<List<object>>,
     /// <summary>
     /// The executing query stats (continually updated)
     /// </summary>
-    public TrinoStats Stats => currentPage?.Stats;
+    public TrinoStats? Stats => currentPage?.Stats;
 
     public IList<TrinoColumn> Columns
     {
         get
         {
-            if (columns == null)
-            {
-                columns = PopulateColumnsAsync().SafeResult();
-            }
-            return columns;
+            columns ??= PopulateColumnsAsync().SafeResult();
+            return columns!;
         }
     }
 
@@ -103,10 +100,7 @@ public class Records : IEnumerator<List<object>>,
                 rowIndex = 0;
                 currentPage = pages.Current;
 
-                if (columns == null)
-                {
-                    columns = pages.Current.Columns;
-                }
+                columns ??= pages.Current.Columns;
             }
             else if (pages.IsFinished())
             {
@@ -180,7 +174,7 @@ public class Records : IEnumerator<List<object>>,
         return await pages.HasData().ConfigureAwait(false);
     }
 
-    public async Task<Statement> ReadToEnd()
+    public async Task<Statement?> ReadToEnd()
     {
         return await pages.ReadToEnd().ConfigureAwait(false);
     }
@@ -188,16 +182,13 @@ public class Records : IEnumerator<List<object>>,
     /// <summary>
     /// Updates columns. Used to fetch columns if they are read before rows are read.
     /// </summary>
-    internal async Task<IList<TrinoColumn>> PopulateColumnsAsync()
+    internal async Task<IList<TrinoColumn>?> PopulateColumnsAsync()
     {
-        if (columns == null)
-        {
-            columns = await pages.WaitAndGetColumns().ConfigureAwait(false);
-        }
+        columns ??= await pages.WaitAndGetColumns().ConfigureAwait(false);
         return columns;
     }
 
-    private T CastWithNullCheck<T>(int colIndex, object o, bool allowNull)
+    private T CastWithNullCheck<T>(int colIndex, object? o, bool allowNull)
     {
         if (o == null && !allowNull)
         {
@@ -206,18 +197,18 @@ public class Records : IEnumerator<List<object>>,
         try
         {
             // Direct cast if possible
-            return (T)o;
+            return (T)o!;
         }
         catch (InvalidCastException)
         {
             // Attempt to convert if direct cast fails
             try
             {
-                return (T)Convert.ChangeType(o, typeof(T));
+                return (T)Convert.ChangeType(o, typeof(T))!;
             }
             catch (InvalidCastException)
             {
-                throw new InvalidCastException($"Cannot cast or convert object of type `{o.GetType()}` to type `{typeof(T)}`.");
+                throw new InvalidCastException($"Cannot cast or convert object of type `{o?.GetType()}` to type `{typeof(T)}`.");
             }
         }
     }

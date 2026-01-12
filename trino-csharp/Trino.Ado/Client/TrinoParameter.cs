@@ -1,6 +1,7 @@
 using System;
 using System.Data;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Trino.Ado
 {
@@ -13,10 +14,23 @@ namespace Trino.Ado
         public override DbType DbType { get; set; }
         public override ParameterDirection Direction { get; set; }
         public override bool IsNullable { get; set; }
-        public override string ParameterName { get; set; }
-        public override string SourceColumn { get; set; }
+
+        [AllowNull]
+        public override string ParameterName
+        {
+            get => field ?? string.Empty;
+            set => field = value;
+        }
+
+        [AllowNull]
+        public override string SourceColumn
+        {
+            get => field ?? string.Empty;
+            set => field = value;
+        }
+
         public override DataRowVersion SourceVersion { get; set; }
-        public override object Value { get; set; }
+        public override object? Value { get; set; }
         public override bool SourceColumnNullMapping { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
 
         public override void ResetDbType()

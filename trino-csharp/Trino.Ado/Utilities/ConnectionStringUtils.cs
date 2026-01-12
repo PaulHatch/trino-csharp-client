@@ -81,13 +81,18 @@ namespace Trino.Ado.Utilities
         /// Auth and server URI require custom handling.
         /// </summary>
         /// <param name="additionalAuthProviders">List of authentication providers to use in addition to integrated JWT auth.</param>
-        public static ClientSession UpdateSessionFromConnectionString(ClientSession session, string connectionString, IEnumerable<Type> additionalAuthProviders)
+        public static ClientSession UpdateSessionFromConnectionString(ClientSession session, string connectionString, IEnumerable<Type>? additionalAuthProviders)
         {
             var connectionStringBuilder = new DbConnectionStringBuilder
             {
                 ConnectionString = connectionString
             };
-            var connectionStringProperties = connectionStringBuilder.Cast<KeyValuePair<string, object>>().ToDictionary(k => k.Key, v => v.Value.ToString(), StringComparer.InvariantCultureIgnoreCase);
+            var connectionStringProperties = connectionStringBuilder
+                .Cast<KeyValuePair<string, object>>()
+                .ToDictionary<KeyValuePair<string, object>, string, string?>(
+                    k => k.Key,
+                    v => v.Value.ToString(),
+                    StringComparer.InvariantCultureIgnoreCase);
 
             var port = ClientSessionProperties.DEFAULT_PORT;
             ISet<string> propertiesWithCustomHandling =
@@ -120,16 +125,17 @@ namespace Trino.Ado.Utilities
             }
 
             // Attempt to locate authentication and assign to session
-            var propertiesConsumedByAuth = string.IsNullOrEmpty(auth) ? new HashSet<string>()
-                : CreateAuth(session, connectionStringProperties, auth, additionalAuthProviders);
+            var propertiesConsumedByAuth = auth is { Length: > 0 } authValue
+                ? CreateAuth(session, connectionStringProperties, authValue, additionalAuthProviders ?? [])
+                : new HashSet<string>();
 
             // Hostname is required
-            if (string.IsNullOrEmpty(host))
+            if (host is not { Length: > 0 } hostValue)
             {
                 throw new ArgumentNullException($"{HostProperty} cannot be empty in the Trino connection string.");
             }
 
-            session.Properties.Server = ClientSessionProperties.GetServerUri(host, enableSsl, port);
+            session.Properties.Server = ClientSessionProperties.GetServerUri(hostValue, enableSsl, port);
 
             // Apply the remaining properies
             foreach (KeyValuePair<string, object> param in connectionStringBuilder)
@@ -158,7 +164,7 @@ namespace Trino.Ado.Utilities
                 var propertyValue = property.Value.Serializer.Invoke(session.Properties);
                 if (!string.IsNullOrEmpty(propertyValue))
                 {
-                    connectionString.Add(property.Key, property.Value.Serializer.Invoke(session.Properties));
+                    connectionString.Add(property.Key, propertyValue);
                 }
             }
 
@@ -178,7 +184,7 @@ namespace Trino.Ado.Utilities
                         var propertyValue = property.GetValue(session.Auth);
                         if (propertyValue != null)
                         {
-                            connectionString.Add(property.Name, property.GetValue(session.Auth).ToString());
+                            connectionString.Add(property.Name, propertyValue.ToString()!);
                         }
                     }
                 }
@@ -190,11 +196,12 @@ namespace Trino.Ado.Utilities
         /// <summary>
         /// Assign a session property based on a key/value pair.
         /// </summary>
-        private static bool TrySetSessionProperty(ClientSessionProperties sessionProperties, string key, object value)
+        private static bool TrySetSessionProperty(ClientSessionProperties sessionProperties, string key, object? value)
         {
+            if (value == null) return false;
             if (_propertyHandlers.ContainsKey(key.ToLower()))
             {
-                _propertyHandlers[key.ToLower()].Deserializer.Invoke(sessionProperties, value.ToString());
+                _propertyHandlers[key.ToLower()].Deserializer.Invoke(sessionProperties, value.ToString()!);
                 return true;
             }
             return false;
@@ -259,7 +266,7 @@ namespace Trino.Ado.Utilities
         /// <param name="authMode">The auth type, extracted from the connection string</param>
         private static ISet<string> CreateAuth(
             ClientSession session,
-            Dictionary<string, string> connectionStringProperties,
+            Dictionary<string, string?> connectionStringProperties,
             string authMode,
             IEnumerable<Type> additionalAuthProviders)
         {
@@ -273,7 +280,8 @@ namespace Trino.Ado.Utilities
 
             var authProperties = authTypes[authMode].GetProperties();
             // create instance of authClientTypeNames[auth]
-            var connectionAuthorization = (ITrinoAuth)Activator.CreateInstance(authTypes[authMode]);
+            var connectionAuthorization = (ITrinoAuth?)Activator.CreateInstance(authTypes[authMode])
+                ?? throw new InvalidOperationException($"Failed to create instance of auth type {authMode}");
             foreach (var prop in authProperties)
             {
                 if (connectionStringProperties.ContainsKey(prop.Name))

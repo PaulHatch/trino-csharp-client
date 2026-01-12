@@ -41,7 +41,7 @@ public class TrinoParameterCollectionTests
     {
         var collection = CreateCollection();
 
-        collection.Add(null);
+        collection.Add(null!);
     }
 
     [TestMethod]

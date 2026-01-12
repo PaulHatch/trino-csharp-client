@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using Trino.Core.Logging;
 using Trino.Core.Utils;
 using Trino.Ado.Utilities;
@@ -38,18 +39,25 @@ namespace Trino.Ado.Server
         /// Additional authentication providers that can be used when creating connections from connection strings.
         /// Required because connection strings cannot directly provide authentication providers to the driver.
         /// </summary>
-        public List<Type> AdditionalAuthProvidersForConnectionString { get; set; }
+        public List<Type>? AdditionalAuthProvidersForConnectionString { get; set; }
 
         /// <summary>
         /// Gets or sets the connection string. Connection string parameters are decoded into connection properties.
         /// </summary>
+        [AllowNull]
         public override string ConnectionString
         {
             get => ConnectionStringUtils.GetConnectionString(ConnectionSession);
-            set => ConnectionSession = ConnectionStringUtils.UpdateSessionFromConnectionString(
-                ConnectionSession,
-                value,
-                AdditionalAuthProvidersForConnectionString);
+            set
+            {
+                if (value != null)
+                {
+                    ConnectionSession = ConnectionStringUtils.UpdateSessionFromConnectionString(
+                        ConnectionSession,
+                        value,
+                        AdditionalAuthProvidersForConnectionString);
+                }
+            }
         }
 
         /// <summary>
@@ -60,12 +68,12 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Gets the current database name (equivalent to schema name in Trino).
         /// </summary>
-        public override string Database => ConnectionSession.Properties.Schema;
+        public override string Database => ConnectionSession.Properties.Schema ?? string.Empty;
 
         /// <summary>
         /// Gets or sets the logger for connection operations.
         /// </summary>
-        public ILoggerWrapper Logger { get; set; }
+        public ILoggerWrapper? Logger { get; set; }
 
         /// <summary>
         /// Gets the current state of the connection.
@@ -75,37 +83,46 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Gets the data source (server URI) for this connection.
         /// </summary>
-        public override string DataSource => ConnectionSession.Properties.Server?.ToString();
+        public override string DataSource => ConnectionSession.Properties.Server?.ToString() ?? string.Empty;
 
         /// <summary>
         /// Gets the version of the connected Trino server.
         /// </summary>
-        public override string ServerVersion => new InfoClientV1(ConnectionSession).Get().NodeVersion.Version;
+        public override string ServerVersion => new InfoClientV1(ConnectionSession).Get()?.NodeVersion?.Version ?? string.Empty;
 
         /// <summary>
         /// Event handlers for receiving query statistics and errors.
         /// </summary>
-        public IList<Action<TrinoStats, TrinoError>> InfoMessage { get; private set; }
+        public IList<Action<TrinoStats?, TrinoError?>> InfoMessage { get; private set; }
 
         /// <summary>
         /// Creates a new Trino connection with default settings.
         /// </summary>
-        public TrinoConnection() : this(null)
+        public TrinoConnection() : this((TrinoConnectionProperties?)null)
         {
+        }
+
+        /// <summary>
+        /// Creates a new Trino connection using a connection string.
+        /// </summary>
+        /// <param name="connectionString">ADO.NET connection string with Trino connection parameters.</param>
+        public TrinoConnection(string connectionString) : this()
+        {
+            ConnectionString = connectionString;
         }
 
         /// <summary>
         /// Creates a new Trino connection with the specified connection properties.
         /// </summary>
         /// <param name="connectionProperties">Connection configuration properties.</param>
-        public TrinoConnection(TrinoConnectionProperties connectionProperties)
+        public TrinoConnection(TrinoConnectionProperties? connectionProperties)
         {
             if (connectionProperties != null)
             {
                 ConnectionSession = connectionProperties.GetSession();
             }
 
-            InfoMessage = new List<Action<TrinoStats, TrinoError>>();
+            InfoMessage = new List<Action<TrinoStats?, TrinoError?>>();
         }
 
         /// <summary>
@@ -190,7 +207,7 @@ namespace Trino.Ado.Server
         /// </summary>
         /// <param name="collectionName">The type of schema information to retrieve.</param>
         /// <param name="restrictionValues">Optional filtering restrictions.</param>
-        public override DataTable GetSchema(string collectionName, string[] restrictionValues)
+        public override DataTable GetSchema(string collectionName, string?[]? restrictionValues)
         {
             switch (collectionName.ToLower())
             {
@@ -252,7 +269,8 @@ namespace Trino.Ado.Server
 
         private bool TestConnection()
         {
-            return new InfoClientV1(ConnectionSession).Get().Starting == false;
+            var info = new InfoClientV1(ConnectionSession).Get();
+            return info is {Starting: false};
         }
     }
 }

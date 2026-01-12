@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using Trino.Ado.Client;
@@ -18,7 +19,7 @@ namespace Trino.Ado.Server
     public class TrinoCommand : DbCommand
     {
         private readonly TrinoParameterCollection parameters;
-        private TrinoConnection connection;
+        private TrinoConnection connection = null!;
 
         /// <summary>
         /// Gets the cancellation token source that triggers query cancellation, including server-side cancellation.
@@ -28,7 +29,7 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Gets or sets the logger instance used for command execution logging.
         /// </summary>
-        public ILoggerWrapper Logger { get; set; }
+        public ILoggerWrapper? Logger { get; set; }
 
         #region Constructors
 
@@ -46,7 +47,7 @@ namespace Trino.Ado.Server
         /// </summary>
         /// <param name="connection">The Trino connection to use.</param>
         /// <param name="logger">The logger instance for command execution logging.</param>
-        public TrinoCommand(TrinoConnection connection, ILoggerWrapper logger)
+        public TrinoCommand(TrinoConnection connection, ILoggerWrapper? logger)
             : this(connection, string.Empty, TimeSpan.MaxValue, new CancellationTokenSource(), logger)
         {
         }
@@ -73,8 +74,8 @@ namespace Trino.Ado.Server
             TrinoConnection connection,
             string statement,
             TimeSpan timeout,
-            CancellationTokenSource cancellationToken,
-            ILoggerWrapper logger)
+            CancellationTokenSource? cancellationToken,
+            ILoggerWrapper? logger)
         {
             connection.ConnectionSession.Properties.Timeout = timeout;
             Connection = connection;
@@ -102,7 +103,7 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Gets or sets the Trino connection used by this command.
         /// </summary>
-        protected override DbConnection DbConnection
+        protected override DbConnection? DbConnection
         {
             get => connection;
             set => connection = value as TrinoConnection
@@ -117,7 +118,12 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Gets or sets the SQL statement or stored procedure to execute.
         /// </summary>
-        public override string CommandText { get; set; }
+        [AllowNull]
+        public override string CommandText
+        {
+            get => field ?? string.Empty;
+            set => field = value;
+        }
 
         /// <summary>
         /// Gets or sets how the CommandText property is interpreted.
@@ -127,7 +133,7 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Transactions are not supported in Trino.
         /// </summary>
-        protected override DbTransaction DbTransaction
+        protected override DbTransaction? DbTransaction
         {
             get => throw new NotSupportedException("Transactions are not supported in Trino.");
             set => throw new NotSupportedException("Transactions are not supported in Trino.");
@@ -152,15 +158,15 @@ namespace Trino.Ado.Server
         public override int ExecuteNonQuery()
         {
             var result = RunNonQuery().SafeResult();
-            var stats = result.Records.ReadToEnd().SafeResult().Stats;
-            return (int)stats.ProcessedRows;
+            var stats = result.Records.ReadToEnd().SafeResult()?.Stats;
+            return (int)(stats?.ProcessedRows ?? 0);
         }
 
         /// <summary>
         /// Executes the query and returns the first column of the first row in the result set.
         /// </summary>
         /// <returns>The first column of the first row in the result set, or null if the result set is empty.</returns>
-        public override object ExecuteScalar()
+        public override object? ExecuteScalar()
         {
             var records = RunQuery().SafeResult().Records;
 

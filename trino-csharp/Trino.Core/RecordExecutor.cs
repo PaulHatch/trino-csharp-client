@@ -63,11 +63,11 @@ public class RecordExecutor : IEnumerable<List<object>>
     /// <param name="cancellationToken">Token for cancelling the operation.</param>
     /// <returns>A RecordExecutor instance for enumerating the query results.</returns>
     public static async Task<RecordExecutor> Execute(
-        ILoggerWrapper logger,
-        IList<Action<TrinoStats, TrinoError>> queryStatusNotifications,
+        ILoggerWrapper? logger,
+        IList<Action<TrinoStats?, TrinoError?>>? queryStatusNotifications,
         ClientSession session,
         string statement,
-        IEnumerable<QueryParameter> queryParameters,
+        IEnumerable<QueryParameter>? queryParameters,
         long bufferSize,
         bool isQuery,
         CancellationToken cancellationToken)

@@ -95,7 +95,7 @@ public struct TrinoBigDecimal
 
     public BigInteger GetFractionalPart() => fractionalPart;
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
     {
         if (obj is TrinoBigDecimal other)
         {

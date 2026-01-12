@@ -10,9 +10,9 @@ namespace Trino.Core;
 public class ClientSession
 {
     /// <summary>
-    /// Gets or sets the authentication method used for Trino connections.
+    /// Gets or sets the authentication method used for Trino connections. Null indicates no authentication.
     /// </summary>
-    public ITrinoAuth Auth { get; set; }
+    public ITrinoAuth? Auth { get; set; }
 
     /// <summary>
     /// Gets the session properties that define connection behavior and settings.
@@ -32,7 +32,7 @@ public class ClientSession
     /// </summary>
     /// <param name="server">The Trino server URI.</param>
     /// <param name="auth">The authentication provider.</param>
-    public ClientSession(Uri server, ITrinoAuth auth)
+    public ClientSession(Uri server, ITrinoAuth? auth)
         : this(new ClientSessionProperties { Server = server }, auth)
     {
     }
@@ -42,7 +42,7 @@ public class ClientSession
     /// </summary>
     /// <param name="sessionProperties">The session configuration properties.</param>
     /// <param name="auth">The authentication provider.</param>
-    public ClientSession(ClientSessionProperties sessionProperties, ITrinoAuth auth = null)
+    public ClientSession(ClientSessionProperties sessionProperties, ITrinoAuth? auth = null)
     {
         Properties = sessionProperties;
         Auth = auth;

@@ -15,7 +15,7 @@ public class InfoClientV1 : AbstractClient<TrinoInfo>
     {
     }
 
-    public InfoClientV1(ClientSession session, ILoggerWrapper logger, CancellationToken cancellationToken) : base(session, logger, cancellationToken)
+    public InfoClientV1(ClientSession session, ILoggerWrapper? logger, CancellationToken cancellationToken) : base(session, logger, cancellationToken)
     {
     }
 }

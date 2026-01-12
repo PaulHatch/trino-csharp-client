@@ -11,20 +11,12 @@ public class TrinoColumn
     /// <summary>
     /// The column name
     /// </summary>
-    public string Name
-    {
-        get;
-        set;
-    }
+    public string? Name { get; set; }
 
     /// <summary>
     /// The Trino column data type. Call GetColumnType() to get the .NET type
     /// </summary>
-    public string Type
-    {
-        get;
-        set;
-    }
+    public string? Type { get; set; }
 
     public Type GetColumnType()
     {

@@ -19,11 +19,7 @@ public class TrinoJwtAuth : ITrinoAuth
     /// <summary>
     /// Bearer token (JWT)
     /// </summary>
-    public string AccessToken
-    {
-        get;
-        set;
-    }
+    public string? AccessToken { get; set; }
 
     public void AuthorizeAndValidate()
     {
