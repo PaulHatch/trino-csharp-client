@@ -216,8 +216,8 @@ namespace Trino.Ado.Server
         {
             RecordExecutor queryExecutor;
 
-            if ((behavior == CommandBehavior.Default)
-                || ((behavior & CommandBehavior.SingleResult) == CommandBehavior.SingleResult))
+            if (behavior == CommandBehavior.Default
+                || (behavior & CommandBehavior.SingleResult) == CommandBehavior.SingleResult)
             {
                 // Single result means only run one query. Trino only supports one query.
                 queryExecutor = await RunQuery().ConfigureAwait(false);
@@ -234,6 +234,11 @@ namespace Trino.Ado.Server
             else if ((behavior & CommandBehavior.CloseConnection) == CommandBehavior.CloseConnection)
             {
                 // Trino has no concept of a connection because every call is a new connection.
+                queryExecutor = await RunQuery().ConfigureAwait(false);
+            }
+            else if ((behavior & CommandBehavior.SequentialAccess) == CommandBehavior.SequentialAccess)
+            {
+                // SequentialAccess is a hint to read columns in order - safe to treat as normal query
                 queryExecutor = await RunQuery().ConfigureAwait(false);
             }
             else
