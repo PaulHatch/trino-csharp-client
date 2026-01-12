@@ -18,7 +18,7 @@ namespace Trino.Ado.Server
     public class TrinoConnection : DbConnection
     {
         private ConnectionState state = ConnectionState.Closed;
-        private static readonly HashSet<string> _supportedSchemaCollections = new(StringComparer.OrdinalIgnoreCase)
+        private static readonly HashSet<string> _supportedSchemaCollections = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "catalogs",
             "schemas",
@@ -33,7 +33,7 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Gets or sets the client session associated with this connection.
         /// </summary>
-        public ClientSession ConnectionSession { get; set; } = new();
+        public ClientSession ConnectionSession { get; set; } = new ClientSession();
 
         /// <summary>
         /// Additional authentication providers that can be used when creating connections from connection strings.

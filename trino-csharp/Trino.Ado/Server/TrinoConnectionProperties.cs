@@ -4,7 +4,6 @@ using Trino.Core.Auth;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-// ReSharper disable UnusedAutoPropertyAccessor.Global
 
 namespace Trino.Ado.Server
 {
@@ -38,7 +37,7 @@ namespace Trino.Ado.Server
         public bool AllowHostNameCnMismatch { get; set; }
 
         /// <summary>
-        /// Allow self-signed certificate.
+        /// Allow self signed certificate.
         /// </summary>
         public bool AllowSelfSignedServerCert { get; set; }
 
@@ -159,7 +158,7 @@ namespace Trino.Ado.Server
         public string? TrustedCertPath { get; set; }
 
         /// <summary>
-        /// Trusted certificate embedded string.
+        /// Trusted certificate embeded string.
         /// </summary>
         public string? TrustedCertificate { get; set; }
 
@@ -179,7 +178,7 @@ namespace Trino.Ado.Server
         public string? User { get; set; }
 
         /// <summary>
-        /// Allows test connection to be enabled. If false, any connection test will be ignored, even if explicitly called.
+        /// Allows test connection to be enabled. If false, any connection test will ignored, even if explicitly called.
         /// </summary>
         public bool TestConnection { get; set; }
 

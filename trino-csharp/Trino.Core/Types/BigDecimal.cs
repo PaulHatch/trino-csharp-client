@@ -8,7 +8,7 @@ public struct TrinoBigDecimal
     private BigInteger integerPart;
     private BigInteger fractionalPart;
     private int scale;
-    private readonly int sign; // store explicit sign to preserve "-0.xxx" cases
+    private int sign; // store explicit sign to preserve "-0.xxx" cases
 
     public TrinoBigDecimal(string value)
     {

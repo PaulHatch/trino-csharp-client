@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Trino.Ado.Client;
@@ -79,7 +80,7 @@ namespace Trino.Ado.Server
         {
             connection.ConnectionSession.Properties.Timeout = timeout;
             Connection = connection;
-            commandText = statement;
+            CommandText = statement;
             CancellationToken = cancellationToken ?? new CancellationTokenSource();
             Logger = logger;
             parameters = new TrinoParameterCollection();
@@ -121,10 +122,9 @@ namespace Trino.Ado.Server
         [AllowNull]
         public override string CommandText
         {
-            get => commandText ?? string.Empty;
-            set => commandText = value;
+            get => field ?? string.Empty;
+            set => field = value;
         }
-        private string? commandText;
 
         /// <summary>
         /// Gets or sets how the CommandText property is interpreted.
@@ -276,13 +276,8 @@ namespace Trino.Ado.Server
         /// <summary>
         /// Converts ADO.NET parameters to Trino query parameters.
         /// </summary>
-        private static IEnumerable<QueryParameter> ConvertParameters(IDataParameterCollection parameters)
-        {
-            foreach (IDataParameter parameter in parameters)
-            {
-                yield return new QueryParameter(parameter.Value);
-            }
-        }
+        private static IEnumerable<QueryParameter> ConvertParameters(IDataParameterCollection parameters) 
+            => from IDataParameter parameter in parameters select new QueryParameter(parameter.Value);
 
         /// <summary>
         /// Cancels the execution of the command.

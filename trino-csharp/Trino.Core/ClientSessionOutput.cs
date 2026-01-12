@@ -17,7 +17,7 @@ internal class ClientSessionOutput
     internal string? SetPath { get; set; }
     internal string? SetAuthorizationUser { get; set; }
     internal bool ResetAuthorizationUser { get; set; }
-    internal Dictionary<string, string> SetSessionProperties { get; set; } = new();
+    internal Dictionary<string, string> SetSessionProperties { get; set; } = new Dictionary<string, string>();
     internal Dictionary<string, string> ResponseAddedPrepare { get; set; }
     internal Dictionary<string, string> ResponseDeallocatedPrepare { get; set; }
 }

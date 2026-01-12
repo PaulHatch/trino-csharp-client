@@ -79,7 +79,7 @@ public class ObjectToInferredTypeConverter : JsonConverter<object>
         }
     }
 
-    public override void Write(Utf8JsonWriter writer, object? value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
     {
         JsonSerializer.Serialize(writer, value, value?.GetType() ?? typeof(object), options);
     }

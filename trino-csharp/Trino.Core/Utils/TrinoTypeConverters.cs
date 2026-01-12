@@ -44,8 +44,8 @@ public class TrinoTypeConverters
     // DateTime formatter is not used: "yyyy-MM-dd HH\\:mm\\:ss.ffffff";
     // Instead a regex is used to parse the timestamp to allow extraction of the timezone.
     // "K" is the offset only.
-    private static readonly Regex _trinoTimestampWithTimezoneFormat = new(@"([\d]{4})-([\d]{2})-([\d]{2}) ([\d]{2})\:([\d]{2})\:([\d]{2})(\.([\d]+))? ([+-]\d\d:\d\d|UTC)");
-    private static readonly Regex _trinoOffset = new(@"([+-]\d\d):(\d\d)");
+    private static readonly Regex _trinoTimestampWithTimezoneFormat = new Regex(@"([\d]{4})-([\d]{2})-([\d]{2}) ([\d]{2})\:([\d]{2})\:([\d]{2})(\.([\d]+))? ([+-]\d\d:\d\d|UTC)");
+    private static readonly Regex _trinoOffset = new Regex(@"([+-]\d\d):(\d\d)");
 
     private static readonly string _trinoTimeFormat = "hh\\:mm\\:ss\\.fff";
 

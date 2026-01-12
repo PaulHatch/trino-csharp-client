@@ -4,11 +4,9 @@ using Trino.Core.Auth;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
-using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-// ReSharper disable MemberCanBePrivate.Global
 
 namespace Trino.Ado.Utilities
 {
@@ -47,9 +45,9 @@ namespace Trino.Ado.Utilities
         public static string UseSystemTrustStoreProperty => "UseSystemTrustStore";
 
         // handles session key value pair strings
-        private static readonly Regex _keyValuePairs = new(@"^[0-9A-z_\.]+:[0-9A-z_\.]+(,[0-9A-z_\.]+:[0-9A-z_\.]+)*,?$");
+        private static readonly Regex _keyValuePairs = new Regex(@"^[0-9A-z_\.]+:[0-9A-z_\.]+(,[0-9A-z_\.]+:[0-9A-z_\.]+)*,?$");
 
-        private static readonly Dictionary<string, PropertyHandler> _propertyHandlers = new(StringComparer.InvariantCultureIgnoreCase)
+        private static readonly Dictionary<string, PropertyHandler> _propertyHandlers = new Dictionary<string, PropertyHandler>(StringComparer.InvariantCultureIgnoreCase)
         {
             { UserProperty, new PropertyHandler((session) => session.User, (session, value) => session.User = value) },
             { TestConnectionProperty, new PropertyHandler((session) => session.TestConnection.ToString(), (session, value) => session.TestConnection = bool.Parse(value)) },
@@ -62,7 +60,7 @@ namespace Trino.Ado.Utilities
             { ClientInfoProperty, new PropertyHandler((session) => session.ClientInfo, (session, value) => session.ClientInfo = value) },
             { ClientTagsProperty, new PropertyHandler((session) => string.Join(",", session.ClientTags), (session, value) => session.ClientTags =
                 [..value.Split(',')]) },
-            { ClientRequestTimeoutProperty, new PropertyHandler((session) => session.ClientRequestTimeout?.TotalSeconds.ToString(CultureInfo.InvariantCulture), (session, value) => session.ClientRequestTimeout = TimeSpan.FromSeconds(double.Parse(value))) },
+            { ClientRequestTimeoutProperty, new PropertyHandler((session) => session.ClientRequestTimeout.HasValue ? session.ClientRequestTimeout.Value.TotalSeconds.ToString() : null, (session, value) => session.ClientRequestTimeout = TimeSpan.FromSeconds(double.Parse(value))) },
             { CompressionDisabledProperty, new PropertyHandler((session) => (session.CompressionDisabled).ToString(), (session, value) => session.CompressionDisabled = bool.Parse(value)) },
             { TransactionIdProperty, new PropertyHandler((session) => session.TransactionId, (session, value) => session.TransactionId = value) },
             { TraceTokenProperty, new PropertyHandler((session) => session.TraceToken, (session, value) => session.TraceToken = value) },
@@ -200,11 +198,7 @@ namespace Trino.Ado.Utilities
         /// </summary>
         private static bool TrySetSessionProperty(ClientSessionProperties sessionProperties, string key, object? value)
         {
-            if (value == null)
-            {
-                return false;
-            }
-
+            if (value == null) return false;
             if (_propertyHandlers.ContainsKey(key.ToLower()))
             {
                 _propertyHandlers[key.ToLower()].Deserializer.Invoke(sessionProperties, value.ToString()!);
@@ -279,12 +273,12 @@ namespace Trino.Ado.Utilities
             var authTypes = BuildAuthTypesMap(additionalAuthProviders);
             ISet<string> handledProperties = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
 
-            if (!authTypes.TryGetValue(authMode, out var type))
+            if (!authTypes.ContainsKey(authMode))
             {
                 throw new ArgumentException($"Authentication type {authMode} not available. Current auth modes available are: {string.Join(", ", authTypes.Keys)}");
             }
 
-            var authProperties = type.GetProperties();
+            var authProperties = authTypes[authMode].GetProperties();
             // create instance of authClientTypeNames[auth]
             var connectionAuthorization = (ITrinoAuth?)Activator.CreateInstance(authTypes[authMode])
                 ?? throw new InvalidOperationException($"Failed to create instance of auth type {authMode}");

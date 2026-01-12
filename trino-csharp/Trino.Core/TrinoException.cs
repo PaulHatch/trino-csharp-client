@@ -14,8 +14,16 @@ public class TrinoException : Exception
     /// Create a new Trino exception.
     /// </summary>
     /// <param name="message">Exception message</param>
+    public TrinoException(string message) : this(message, (TrinoError?)null)
+    {
+    }
+
+    /// <summary>
+    /// Create a new Trino exception.
+    /// </summary>
+    /// <param name="message">Exception message</param>
     /// <param name="trinoError">Trino error</param>
-    public TrinoException(string message, TrinoError? trinoError = null) : base(message)
+    public TrinoException(string message, TrinoError? trinoError) : base(message)
     {
         Error = trinoError;
     }

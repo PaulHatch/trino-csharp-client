@@ -3,7 +3,7 @@ using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Trino.Ado.Client
+namespace Trino.Ado
 {
     /// <summary>
     /// Definition of a Trino parameter. Only the ParameterName is used by Trino.

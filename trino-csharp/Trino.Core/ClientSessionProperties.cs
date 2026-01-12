@@ -22,8 +22,8 @@ public class ClientSessionProperties
     public string? User { get; set; }
     public string? AuthorizationUser { get; set; }
     public string? Principal { get; set; }
-    public Dictionary<string, string> ExtraCredentials { get; set; } = new();
-    public Dictionary<string, ClientSelectedRole> Roles { get; set; } = new();
+    public Dictionary<string, string> ExtraCredentials { get; set; } = new Dictionary<string, string>();
+    public Dictionary<string, ClientSelectedRole> Roles { get; set; } = new Dictionary<string, ClientSelectedRole>();
 
     // Database Settings
     public string? Catalog { get; set; }
@@ -38,9 +38,9 @@ public class ClientSessionProperties
     public string ServerType { get; set; } = "Trino";
 
     // Session Properties
-    public Dictionary<string, string> Properties { get; set; } = new();
-    public Dictionary<string, string> PreparedStatements { get; set; } = new();
-    public Dictionary<string, string> ResourceEstimates { get; set; } = new();
+    public Dictionary<string, string> Properties { get; set; } = new Dictionary<string, string>();
+    public Dictionary<string, string> PreparedStatements { get; set; } = new Dictionary<string, string>();
+    public Dictionary<string, string> ResourceEstimates { get; set; } = new Dictionary<string, string>();
     public Dictionary<string, string>? AdditionalHeaders { get; set; }
 
     // Locale and Time Settings

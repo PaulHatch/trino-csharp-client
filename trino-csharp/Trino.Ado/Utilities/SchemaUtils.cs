@@ -18,7 +18,7 @@ namespace Trino.Ado.Utilities
     /// </summary>
     internal class SchemaUtils
     {
-        private static readonly Regex _legalIdentifierName = new("^[a-zA-Z_][a-zA-Z_0-9]*$");
+        private static readonly Regex _legalIdentifierName = new Regex("^[a-zA-Z_][a-zA-Z_0-9]*$");
 
         internal static DataTable GetInformationSchema(TrinoConnection connection, ILoggerWrapper? logger, string informationSchemaTable, string filter)
         {
@@ -61,30 +61,30 @@ namespace Trino.Ado.Utilities
 
         internal static TrinoSchemaRestriction[] SchemaRestrictionsMapping =
         [
-            new("schema_name", SchemaRestrictionType.Schema)
+            new TrinoSchemaRestriction("schema_name", SchemaRestrictionType.Schema)
         ];
 
         internal static TrinoSchemaRestriction[] TableRestrictionsMapping =
         [
-            new("table_catalog", SchemaRestrictionType.Catalog),
-            new("table_schema", SchemaRestrictionType.Schema),
-            new("table_name", SchemaRestrictionType.Table),
-            new("table_type", SchemaRestrictionType.TableType)
+            new TrinoSchemaRestriction("table_catalog", SchemaRestrictionType.Catalog),
+            new TrinoSchemaRestriction("table_schema", SchemaRestrictionType.Schema),
+            new TrinoSchemaRestriction("table_name", SchemaRestrictionType.Table),
+            new TrinoSchemaRestriction("table_type", SchemaRestrictionType.TableType)
         ];
 
         internal static TrinoSchemaRestriction[] ColumnRestrictionsMapping =
         [
-            new("table_catalog", SchemaRestrictionType.Catalog),
-            new("table_schema", SchemaRestrictionType.Schema),
-            new("table_name", SchemaRestrictionType.Table),
-            new("column_name", SchemaRestrictionType.Column)
+            new TrinoSchemaRestriction("table_catalog", SchemaRestrictionType.Catalog),
+            new TrinoSchemaRestriction("table_schema", SchemaRestrictionType.Schema),
+            new TrinoSchemaRestriction("table_name", SchemaRestrictionType.Table),
+            new TrinoSchemaRestriction("column_name", SchemaRestrictionType.Column)
         ];
 
         internal static TrinoSchemaRestriction[] ViewRestrictionsMapping =
         [
-            new("table_catalog", SchemaRestrictionType.Catalog),
-            new("table_schema", SchemaRestrictionType.Schema),
-            new("table_name", SchemaRestrictionType.Table)
+            new TrinoSchemaRestriction("table_catalog", SchemaRestrictionType.Catalog),
+            new TrinoSchemaRestriction("table_schema", SchemaRestrictionType.Schema),
+            new TrinoSchemaRestriction("table_name", SchemaRestrictionType.Table)
         ];
 
         private static void ValidateRestrictionValues(TrinoSchemaRestriction[] restrictionMapping, string?[]? restrictionValues)
