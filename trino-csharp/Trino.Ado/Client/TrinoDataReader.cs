@@ -300,7 +300,7 @@ namespace Trino.Ado.Client
 
         public override bool NextResult()
         {
-            throw new NotSupportedException("Trino supports only a single result per query.");
+            return false; // Trino supports only a single result per query
         }
 
         /// <summary>
