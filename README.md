@@ -67,7 +67,7 @@ In Visual Studio, open TrinoDriver.slnx and build.
 2. Install the C# extension for VS Code
 3. Open the project folder in VS Code
 4. Select a build configuration using the .NET: Select Project command
-5. Build using Terminal > Run Build Task or `dotnet build TrinoDriver.sln`
+5. Build using Terminal > Run Build Task or `dotnet build TrinoDriver.slnx`
 
 
 ## Usage Examples
@@ -85,7 +85,7 @@ TrinoConnectionProperties properties = new TrinoConnectionProperties()
 {
     Catalog = "tpch",
     Server = new Uri("https://trino.myhost.net/"),
-    Auth = new TrinoJWTAuth(token: "...")
+    Auth = new TrinoJwtAuth { AccessToken = "..." }
 };
 
 using (TrinoConnection connection = new TrinoConnection(properties))
@@ -102,6 +102,7 @@ using (TrinoConnection connection = new TrinoConnection(properties))
         }
     }
 }
+```
 
 ### Quick Start Using Trino SDK
 
@@ -145,7 +146,7 @@ foreach (var row in records)
 For more complex scenarios, the SDK provides direct access to Trino features:
 
 ```csharp
-ITrinoAuth auth = new TrinoJWTAuth() { AccessToken = "token" };
+ITrinoAuth auth = new TrinoJwtAuth { AccessToken = "token" };
 
 ClientSession session = new TrinoConnectionProperties()
 {
@@ -187,7 +188,7 @@ When establishing an ADO.NET connection you declare your connection using the `T
 TrinoConnectionProperties properties = new TrinoConnectionProperties()
 {
     Server = new Uri("https://trino.myhost.net/"),
-    Auth = new TrinoJWTAuth(token: "...")
+    Auth = new TrinoJwtAuth { AccessToken = "..." }
 };
 ```
 
@@ -211,7 +212,7 @@ Example connection using a connection string:
 ```csharp
 using (TrinoConnection tc = new TrinoConnection())
 {
-    tc.ConnectionString = $"catalog=delta;schema=nyc;host={demoClusterHost};auth=TrinoJWTAuth;AccessToken={token}";
+    tc.ConnectionString = $"catalog=delta;schema=nyc;host={demoClusterHost};auth=TrinoJwtAuth;AccessToken={token}";
     using (IDbCommand trinoCommand = new TrinoCommand(tc, all_types, TimeSpan.MaxValue, null, logger))
     {
         IDataReader idr = trinoCommand.ExecuteReader();
@@ -248,7 +249,7 @@ using (TrinoConnection connection = new TrinoConnection(properties))
 |AdditionalHeaders|Key value pairs to be sent to the Trino endpoint.|`new Dictionary<string, string>() {{"key", "value"}}`|n/a|
 |AllowHostNameCNMismatch|Allows the hostname not to match the Common Name (CN) or Subject Alternative Name (SAN) listed on the certificate|false|`AllowHostNameCNMismatch=false`|
 |AllowSelfSignedServerCert|The server’s SSL/TLS certificate does not need to be issued by a trusted Certificate Authority (CA) and can be self-signed instead.|false|`AllowSelfSignedServerCert=false`|
-|Auth|Authentication method. Must implement ITrinoAuth. See [Authentication](#authentication).|new TrinoAzureDefaultAuth(scope: "https://1c9dee158a58484e87f84fb40997b520/.default")|`auth=TrinoJWTAuth;accessToken=token;`|
+|Auth|Authentication method. Must implement ITrinoAuth. See [Authentication](#authentication).|new TrinoAzureDefaultAuth(scope: "https://1c9dee158a58484e87f84fb40997b520/.default")|`auth=TrinoJwtAuth;AccessToken=token;`|
 |Catalog|Trino default catalog|`catalog=tpch`|
 |ClientTags|A list of tags associated with the client|`new List<string>() {"tag1", "tag2"}`|`clienttags=tag1,tag2`|
 |CompressionDisabled|Disables compressed communication between Trino and the client.|false|`compressiondisabled=true`|
@@ -278,12 +279,12 @@ Built-in providers include:
 #### JWT Bearer Token
 Simple token-based authentication:
 ```csharp
-Auth = new TrinoJWTAuth(token: "your-token-here")
+Auth = new TrinoJwtAuth { AccessToken = "your-token-here" }
 ```
 
 You can implement token refresh:
 ```csharp
-TrinoJWTAuth auth = new TrinoJWTAuth(getInitialToken());
+TrinoJwtAuth auth = new TrinoJwtAuth { AccessToken = getInitialToken() };
 using (TrinoConnection connection = new TrinoConnection(properties))
 {
     // Setup automatic refresh every 45 minutes
