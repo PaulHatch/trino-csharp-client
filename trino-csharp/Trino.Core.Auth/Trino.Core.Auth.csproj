@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
-    <Description>Trino Client Authentication</Description>
+    <Description>Trino Client Authentication - maintained and published fork of the official Trino C# client</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>trino.png</PackageIcon>
     <LangVersion>14</LangVersion>

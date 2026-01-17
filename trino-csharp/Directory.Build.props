@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <Authors>Trino</Authors>
+    <PackageProjectUrl>https://github.com/PaulHatch/trino-csharp-client</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/PaulHatch/trino-csharp-client.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>trino;sql;database;client</PackageTags>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>
