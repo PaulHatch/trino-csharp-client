@@ -346,7 +346,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
             {
                 Logger?.LogDebug("Trino: No data yet, backoff wait queryId:{0}, delay {1} msec", Statement.ID,
                     readDelay);
-                await Task.Delay((int)readDelay).ConfigureAwait(false);
+                await Task.Delay((int)readDelay, CancellationToken).ConfigureAwait(false);
                 if (readDelay < _maxReadDelayMsec)
                 {
                     readDelay *= _backoffAmount;
