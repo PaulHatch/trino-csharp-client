@@ -30,13 +30,13 @@ namespace Trino.Core;
 internal class StatementClientV1 : AbstractClient<Statement>
 {
     // Initialize values for client response delay
-    // Java client has 100ms initial delay, but 50ms provides noticably better performance in testing.
+    // Java client has 100ms initial delay, but 50ms provides noticeably better performance in testing.
     private double readDelay = _initialPageReadDelayMsec;
-    private int readCount = 0;
+    private int readCount;
     private static readonly int _initialPageReadDelayMsec = (int)TimeSpan.FromMilliseconds(50).TotalMilliseconds;
     private static readonly int _maxReadDelayMsec = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
     // Java client does 100ms backoff but this affects query performance especially for metadata and cache operations.
-    // This backoff produces less calls than the Java client.
+    // This backoff produces fewer calls than the Java client.
     private static readonly double _backoffAmount = 1.2;
 
     private static readonly HashSet<HttpStatusCode> _ok = [HttpStatusCode.OK];
@@ -90,36 +90,75 @@ internal class StatementClientV1 : AbstractClient<Statement>
         {
             handler.ClientCertificateOptions = ClientCertificateOption.Automatic;
         }
-        else
+
+        // Add client certificate for mTLS authentication
+        var hasManualClientCert = session.Properties.ClientCertificate != null || !string.IsNullOrEmpty(session.Properties.ClientCertificatePath);
+        if (session.Properties.UseSystemTrustStore && hasManualClientCert)
         {
-            if (!string.IsNullOrEmpty(session.Properties.TrustedCertPath))
+            Logger?.LogWarning("UseSystemTrustStore is set but a client certificate is also provided; UseSystemTrustStore will be ignored.");
+        }
+
+        if (session.Properties.ClientCertificate != null)
+        {
+            handler.ClientCertificates.Add(session.Properties.ClientCertificate);
+        }
+        else if (!string.IsNullOrEmpty(session.Properties.ClientCertificatePath))
+        {
+            try
             {
-                try
-                {
-                    var cert = new X509Certificate2(session.Properties.TrustedCertPath);
-                    handler.ClientCertificates.Add(cert);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException("Failed to load trusted certificate.", ex);
-                }
+                var cert = new X509Certificate2(session.Properties.ClientCertificatePath);
+                handler.ClientCertificates.Add(cert);
             }
-            else if (session.Properties.TrustedCertificate is { Length: > 0 } trustedCert)
+            catch (Exception ex)
             {
-                try
-                {
-                    var cert = ConvertPemToX509Certificate(trustedCert);
-                    handler.ClientCertificates.Add(cert);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException("Failed to load trusted certificate from PEM string.", ex);
-                }
+                throw new InvalidOperationException("Failed to load client certificate from file.", ex);
+            }
+        }
+
+        // Load trusted certificate for server validation
+        var trustedCert = session.Properties.TrustedCertificate;
+        if (trustedCert == null && !string.IsNullOrEmpty(session.Properties.TrustedCertificatePath))
+        {
+            try
+            {
+                trustedCert = new X509Certificate2(session.Properties.TrustedCertificatePath);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Failed to load trusted certificate from file.", ex);
             }
         }
 
         handler.ServerCertificateCustomValidationCallback = (httpRequestMessage, x509Certificate2, x509Chain, sslPolicyErrors) =>
         {
+            // Validate against trusted certificate if provided
+            if (trustedCert != null && x509Certificate2 != null)
+            {
+                // Check if server cert matches trusted cert directly (pinned certificate)
+                if (x509Certificate2.Thumbprint == trustedCert.Thumbprint)
+                {
+                    return true;
+                }
+
+                // Check if server cert is signed by trusted cert (CA certificate)
+                using var chain = new X509Chain();
+                chain.ChainPolicy.ExtraStore.Add(trustedCert);
+                chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
+
+                if (chain.Build(x509Certificate2))
+                {
+                    // Verify the chain terminates at our trusted cert
+                    var chainRoot = chain.ChainElements[chain.ChainElements.Count - 1].Certificate;
+                    if (chainRoot.Thumbprint == trustedCert.Thumbprint)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
             // Allow CN mismatch
             if (session.Properties.AllowHostNameCnMismatch
                 && sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
@@ -147,28 +186,6 @@ internal class StatementClientV1 : AbstractClient<Statement>
         {
             HttpClient.DefaultRequestHeaders.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
         }
-    }
-
-    /// <summary>
-    /// Converts an embedded PEM-formatted certificate string into an X509Certificate2 object.
-    /// </summary>
-    /// <param name="pemString">The PEM-formatted certificate string, including "-----BEGIN CERTIFICATE-----" and "-----END CERTIFICATE-----" markers.</param>
-    /// <returns>An X509Certificate2 object representing the certificate.</returns>
-    internal static X509Certificate2 ConvertPemToX509Certificate(string pemString)
-    {
-        // Remove the PEM header and footer, extracting only the Base64 encoded portion
-        var base64String = pemString
-            .Replace("-----BEGIN CERTIFICATE-----", string.Empty)
-            .Replace("-----END CERTIFICATE-----", string.Empty)
-            .Replace("\r", string.Empty)
-            .Replace("\n", string.Empty)
-            .Trim();
-
-        // Decode the Base64 string into a byte array
-        var certBytes = Convert.FromBase64String(base64String);
-
-        // Create and return an X509Certificate2 object from the byte array
-        return new X509Certificate2(certBytes);
     }
 
     /// <summary>
@@ -253,7 +270,7 @@ internal class StatementClientV1 : AbstractClient<Statement>
             {
                 Logger?.LogInformation("Trino: Sending cancellation request queryId:{0}", Statement.ID);
                 using var request = new HttpRequestMessage(HttpMethod.Delete, Statement.NextUri);
-                // do not use cancellation token here as the query is already cancelled
+                // do not use cancellation token here as the query is already canceled
                 await GetResourceAsync(
                     HttpClient,
                     RetryableResponses,

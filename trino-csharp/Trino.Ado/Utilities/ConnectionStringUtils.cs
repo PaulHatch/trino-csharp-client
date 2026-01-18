@@ -40,8 +40,8 @@ namespace Trino.Ado.Utilities
 
         public static string AllowHostNameCnMismatchProperty => "AllowHostNameCNMismatch";
         public static string AllowSelfSignedServerCertProperty => "AllowSelfSignedServerCert";
-        public static string TrustedCertPathProperty => "TrustedCertPath";
-        public static string TrustedCertificateProperty => "TrustedCertificate";
+        public static string ClientCertificatePathProperty => "ClientCertificatePath";
+        public static string TrustedCertificatePathProperty => "TrustedCertificatePath";
         public static string UseSystemTrustStoreProperty => "UseSystemTrustStore";
 
         // handles session key value pair strings
@@ -70,8 +70,8 @@ namespace Trino.Ado.Utilities
             { PreparedStatementsProperty, new PropertyHandler((session) => SerializeProperties(session.PreparedStatements), (session, value) => session.PreparedStatements = ParseProperties("preparedstatements", value)) },
             { AllowHostNameCnMismatchProperty, new PropertyHandler((session) => session.AllowHostNameCnMismatch.ToString(), (session, value) => session.AllowHostNameCnMismatch = bool.Parse(value)) },
             { AllowSelfSignedServerCertProperty, new PropertyHandler((session) => session.AllowSelfSignedServerCert.ToString(), (session, value) => session.AllowSelfSignedServerCert = bool.Parse(value)) },
-            { TrustedCertPathProperty, new PropertyHandler((session) => session.TrustedCertPath, (session, value) => session.TrustedCertPath = value) },
-            { TrustedCertificateProperty, new PropertyHandler((session) => session.TrustedCertificate, (session, value) => session.TrustedCertificate = value) },
+            { ClientCertificatePathProperty, new PropertyHandler((session) => session.ClientCertificatePath, (session, value) => session.ClientCertificatePath = value) },
+            { TrustedCertificatePathProperty, new PropertyHandler((session) => session.TrustedCertificatePath, (session, value) => session.TrustedCertificatePath = value) },
             { UseSystemTrustStoreProperty, new PropertyHandler((session) => session.UseSystemTrustStore.ToString(), (session, value) => session.UseSystemTrustStore = bool.Parse(value)) },
             { ServerTypeProperty, new PropertyHandler((session) => session.ServerType.ToString(), (session, value) => session.ServerType = value) }
         };

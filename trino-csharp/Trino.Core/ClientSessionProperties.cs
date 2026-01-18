@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Trino.Core;
 
@@ -53,9 +54,27 @@ public class ClientSessionProperties
     public bool AllowSelfSignedServerCert { get; set; }
     public bool UseSystemTrustStore { get; set; }
 
-    // Certificate Settings
-    public string? TrustedCertPath { get; set; }
-    public string? TrustedCertificate { get; set; }
+    // Client Certificate Settings (for mTLS)
+    /// <summary>
+    /// Client certificate for mTLS authentication.
+    /// </summary>
+    public X509Certificate2? ClientCertificate { get; set; }
+
+    /// <summary>
+    /// Path to the client certificate file for mTLS authentication.
+    /// </summary>
+    public string? ClientCertificatePath { get; set; }
+
+    // Server Certificate Trust Settings
+    /// <summary>
+    /// Trusted server certificate for validating the Trino server's identity.
+    /// </summary>
+    public X509Certificate2? TrustedCertificate { get; set; }
+
+    /// <summary>
+    /// Path to the trusted server certificate file for validating the Trino server's identity.
+    /// </summary>
+    public string? TrustedCertificatePath { get; set; }
 
     /// <summary>
     /// Creates a server URI from component pieces for easier server configuration.
@@ -109,8 +128,10 @@ public class ClientSessionProperties
             TraceToken = TraceToken,
             TransactionId = TransactionId,
             User = User,
-            TrustedCertPath = TrustedCertPath,
+            ClientCertificate = ClientCertificate,
+            ClientCertificatePath = ClientCertificatePath,
             TrustedCertificate = TrustedCertificate,
+            TrustedCertificatePath = TrustedCertificatePath,
             AllowHostNameCnMismatch = AllowHostNameCnMismatch,
             AllowSelfSignedServerCert = AllowSelfSignedServerCert,
             UseSystemTrustStore = UseSystemTrustStore

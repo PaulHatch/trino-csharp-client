@@ -4,6 +4,7 @@ using Trino.Core.Auth;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Trino.Ado.Server
 {
@@ -153,14 +154,24 @@ namespace Trino.Ado.Server
         }
 
         /// <summary>
-        /// Trusted certificate path.
+        /// Client certificate for mTLS authentication (in-memory).
         /// </summary>
-        public string? TrustedCertPath { get; set; }
+        public X509Certificate2? ClientCertificate { get; set; }
 
         /// <summary>
-        /// Trusted certificate embeded string.
+        /// Path to the client certificate file for mTLS authentication.
         /// </summary>
-        public string? TrustedCertificate { get; set; }
+        public string? ClientCertificatePath { get; set; }
+
+        /// <summary>
+        /// Trusted server certificate for validating the Trino server's identity.
+        /// </summary>
+        public X509Certificate2? TrustedCertificate { get; set; }
+
+        /// <summary>
+        /// Path to the trusted server certificate file for validating the Trino server's identity.
+        /// </summary>
+        public string? TrustedCertificatePath { get; set; }
 
         /// <summary>
         /// Use system trust store.
@@ -215,7 +226,10 @@ namespace Trino.Ado.Server
                 AdditionalHeaders = AdditionalHeaders == null ? new Dictionary<string, string>() : AdditionalHeaders.ToDictionary(entry => entry.Key, entry => entry.Value),
                 AllowHostNameCnMismatch = AllowHostNameCnMismatch,
                 AllowSelfSignedServerCert = AllowSelfSignedServerCert,
-                TrustedCertPath = TrustedCertPath,
+                ClientCertificate = ClientCertificate,
+                ClientCertificatePath = ClientCertificatePath,
+                TrustedCertificate = TrustedCertificate,
+                TrustedCertificatePath = TrustedCertificatePath,
                 UseSystemTrustStore = UseSystemTrustStore,
                 ServerType = ServerType
             };
