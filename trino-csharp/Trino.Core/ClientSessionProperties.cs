@@ -108,7 +108,12 @@ public class ClientSessionProperties
             TimeZone = TimeZone,
             TraceToken = TraceToken,
             TransactionId = TransactionId,
-            User = User
+            User = User,
+            TrustedCertPath = TrustedCertPath,
+            TrustedCertificate = TrustedCertificate,
+            AllowHostNameCnMismatch = AllowHostNameCnMismatch,
+            AllowSelfSignedServerCert = AllowSelfSignedServerCert,
+            UseSystemTrustStore = UseSystemTrustStore
         };
     }
 
