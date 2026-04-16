@@ -61,7 +61,7 @@ public class TrinoColumn
             case "ipaddress":
                 return typeof(string);
             default:
-                return typeof(string);
+                throw new Exception($"Unable to determine .NET type for Trino type [{Type}]");
         }
     }
 }
