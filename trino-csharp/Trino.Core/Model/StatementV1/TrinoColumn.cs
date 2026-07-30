@@ -1,5 +1,6 @@
 using System;
 using Trino.Core.Types;
+using Trino.Core.Utils;
 
 namespace Trino.Core.Model.StatementV1;
 
@@ -20,48 +21,30 @@ public class TrinoColumn
 
     public Type GetColumnType()
     {
-        switch (Type)
+        TrinoTypeConverters.GetNestedTypes(Type, out var baseType, out _);
+
+        return baseType.ToLowerInvariant() switch
         {
-            case "boolean":
-                return typeof(bool);
-            case "tinyint":
-                return typeof(sbyte);
-            case "smallint":
-                return typeof(short);
-            case "bigint":
-                return typeof(long);
-            case "integer":
-                return typeof(int);
-            case "double":
-                return typeof(double);
-            case "real":
-                return typeof(float);
-            case "date":
-            case "timestamp":
-                return typeof(DateTime);
-            case "timestamp with time zone":
-                return typeof(DateTimeOffset);
-            case "uuid":
-                return typeof(Guid);
-            case "varbinary":
-                return typeof(byte[]);
-            case string t when t.StartsWith("decimal"):
-                return typeof(TrinoBigDecimal);
-            case "time":
-            case "interval day to second":
-                return typeof(TimeSpan);
-            case "interval year to month":
-                return typeof(TrinoIntervalYearToMonth);
-            case "varchar":
-            case "char":
-            case "json":
-            case "array":
-            case "map":
-            case "row":
-            case "ipaddress":
-                return typeof(string);
-            default:
-                return typeof(string);
-        }
+            TrinoTypeConverters.TRINO_BOOLEAN => typeof(bool),
+            TrinoTypeConverters.TRINO_TINYINT => typeof(sbyte),
+            TrinoTypeConverters.TRINO_SMALLINT => typeof(short),
+            TrinoTypeConverters.TRINO_INTEGER => typeof(int),
+            TrinoTypeConverters.TRINO_BIGINT => typeof(long),
+            TrinoTypeConverters.TRINO_REAL => typeof(float),
+            TrinoTypeConverters.TRINO_DOUBLE => typeof(double),
+            TrinoTypeConverters.TRINO_DECIMAL => typeof(TrinoBigDecimal),
+            TrinoTypeConverters.TRINO_DATE or TrinoTypeConverters.TRINO_TIMESTAMP => typeof(DateTime),
+            TrinoTypeConverters.TRINO_TIMESTAMP_WITH_TIME_ZONE => typeof(DateTimeOffset),
+            TrinoTypeConverters.TRINO_TIME or TrinoTypeConverters.TRINO_INTERVAL_DAY_TO_SECOND => typeof(TimeSpan),
+            TrinoTypeConverters.TRINO_INTERVAL_YEAR_TO_MONTH => typeof(TrinoIntervalYearToMonth),
+            TrinoTypeConverters.TRINO_UUID => typeof(Guid),
+            TrinoTypeConverters.TRINO_VARBINARY => typeof(byte[]),
+            // time with time zone has no C# equivalent and is surfaced as a string
+            TrinoTypeConverters.TRINO_VARCHAR or TrinoTypeConverters.TRINO_CHAR
+                or TrinoTypeConverters.TRINO_TIME_WITH_TIME_ZONE or TrinoTypeConverters.TRINO_JSON
+                or TrinoTypeConverters.TRINO_ARRAY or TrinoTypeConverters.TRINO_MAP
+                or TrinoTypeConverters.TRINO_ROW or TrinoTypeConverters.TRINO_IP => typeof(string),
+            _ => typeof(string)
+        };
     }
 }
